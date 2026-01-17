@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
     QSpacerItem,
+    QScrollArea
 )
 
 from PyQt6.QtCore import Qt
@@ -49,6 +50,13 @@ class JobApplicationCard(QWidget):
         self.job_description = job_description
         self.notes = notes
         self.last_update = last_update
+
+        self.setMinimumWidth(400)
+        self.setMaximumWidth(900)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed
+        )
 
         self._init_ui()
 
@@ -166,6 +174,7 @@ class MainWindow(QMainWindow):
         # Minimum size so the header always has room
         self.setMinimumSize(820, 520)
 
+        # --- Root container ---
         root = QWidget()
         self.setCentralWidget(root)
 
@@ -173,27 +182,49 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
 
+        # --- Header ---
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(12)
 
         title_layout = QVBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(4)
+
         title_label = QLabel("<h1>JobVault Libre</h1>")
-        title_layout.addWidget(title_label)
         subtitle_label = QLabel("Track and manage your job applications")
+
+        title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
 
-        header_layout.addLayout(title_layout)
+        header_layout.addLayout(title_layout, stretch=1)
+
         add_application_button = QPushButton("Add Application")
         add_application_button.clicked.connect(self.add_application)
-        header_layout.addWidget(add_application_button)
-
-        self.body_layout = QVBoxLayout()
+        add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        add_application_button.setMinimumHeight(34)
+        
+        header_layout.addWidget(add_application_button, alignment=Qt.AlignmentFlag.AlignTop)
 
         main_layout.addLayout(header_layout)
-        main_layout.addLayout(self.body_layout)
 
-        widget = QWidget()
-        widget.setLayout(main_layout)
-        self.setCentralWidget(widget)
+        # --- Scrollable body (only this part scrolls) ---
+        body_container = QWidget()
+        self.body_layout = QVBoxLayout(body_container)
+        self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setSpacing(12)
+        self.body_layout.addStretch(1)  # keeps cards pinned to the top
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(body_container)
+
+        main_layout.addWidget(scroll, stretch=1)
+
+        main_layout.addLayout(self.body_layout)
 
     def add_application(self):
         test_card = JobApplicationCard(
@@ -211,7 +242,9 @@ class MainWindow(QMainWindow):
             notes="",
             last_update="")
 
-        self.body_layout.addWidget(test_card)
+        self.body_layout.insertWidget(self.body_layout.count() - 1, test_card, alignment=Qt.AlignmentFlag.AlignTop)
+        # TODO: Decide whether I want the cards small or stretched horizontally as it is now and whether to align left or center.
+        # self.body_layout.insertWidget(self.body_layout.count() - 1, test_card, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
 
 
