@@ -11,53 +11,62 @@ from PyQt6.QtWidgets import (
     QSpacerItem,
     QScrollArea,
     QLineEdit,
-    QCompleter
+    QCompleter,
+    QTextEdit,
+    QComboBox,
+    QFormLayout,
 )
 
-from PyQt6.QtCore import Qt, QStringListModel
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QStringListModel, QEvent
+from PyQt6.QtGui import QIcon, QPalette
+
+from database import JobDatabase  # your database.py file
 
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")
 # search_icon = QIcon(":/icons/search.svg")  # or a local file
 
 class JobApplicationCard(QWidget):
-    def __init__(self, 
-        id, 
-        company, 
-        position, 
-        status, 
+    def __init__(
+        self,
+        id,
+        company,
+        company_website,
+        position,
+        status,
         location,
         date_applied,
-        contact_name, 
+        contact_name,
         contact_email,
-        salary,
-        url,
+        salary_range,
+        job_url,
         job_description,
         notes,
-        last_update):
-
+        last_update,
+        **_ignored,  # allows extra fields without crashing
+    ):
         super().__init__()
         self.id = id
-        self.company = company
-        self.position = position
-        self.status = status
-        self.location = location
-        self.date_applied = date_applied
-        self.contact_name = contact_name
-        self.contact_email = contact_email
-        self.salary = salary
-        self.url = url
-        self.job_description = job_description
-        self.notes = notes
-        self.last_update = last_update
+        self.company = company or ""
+        self.company_website = company_website or ""
+        self.position = position or ""
+        self.status = status or ""
+        self.location = location or ""
+        self.date_applied = date_applied or ""
+        self.contact_name = contact_name or ""
+        self.contact_email = contact_email or ""
+        self.salary_range = salary_range or ""
+        self.job_url = job_url or ""
+        self.job_description = job_description or ""
+        self.notes = notes or ""
+        self.last_update = last_update or ""
 
         self.setMinimumWidth(400)
         self.setMaximumWidth(900)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred,
             QSizePolicy.Policy.Fixed
-        )
+            )
 
         self._init_ui()
 
@@ -157,7 +166,7 @@ class JobApplicationCard(QWidget):
                 padding: 2px 8px;
                 font-size: 11px;
                 color: #ffffff;
-                background-color: #2b7a2b; /* default green-ish */
+                background-color: #2b7a2b;
             }
 
             QPushButton#detailsButton {
@@ -166,6 +175,296 @@ class JobApplicationCard(QWidget):
             }
             """
         )
+
+# TODO: This code is entirely done by LLM and has some wrong things
+class AddApplicationOverlay(QWidget):
+    """
+    An in-window overlay (covers parent) that closes when:
+    - pressing the X button
+    - clicking outside the popup panel
+    """
+    def __init__(self, parent: QWidget, palette: QPalette, on_submit):
+        super().__init__(parent)
+        self.on_submit = on_submit
+
+        # Remove WA_DeleteOnClose to prevent crashes
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("overlay")
+        
+        # Ensure proper stacking and visibility
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        self.setStyleSheet("""
+            QWidget#overlay {
+                background-color: rgba(0, 0, 0, 180);
+            }
+            QFrame#dialogFrame {
+                background-color: #1a1a1a;
+                border-radius: 12px;
+                border: 1px solid #3a3a3a;
+            }
+            QLabel {
+                color: #ffffff;
+            }
+            QLineEdit, QTextEdit {
+                background-color: #2a2a2a;
+                color: #ffffff;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border: 1px solid #5a5a5a;
+            }
+            QComboBox {
+                background-color: #2a2a2a;
+                color: #ffffff;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2a2a2a;
+                color: #ffffff;
+                selection-background-color: #3a3a3a;
+            }
+            QPushButton {
+                background-color: #2a2a2a;
+                color: #ffffff;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+            }
+            QPushButton#saveBtn {
+                background-color: #0d6efd;
+                border: 1px solid #0d6efd;
+            }
+            QPushButton#saveBtn:hover {
+                background-color: #0b5ed7;
+            }
+            QPushButton#closeBtn {
+                background-color: transparent;
+                border: none;
+                font-size: 18px;
+                padding: 4px 8px;
+                color: #aaaaaa;
+            }
+            QPushButton#closeBtn:hover {
+                background-color: rgba(255, 255, 255, 20);
+                border-radius: 6px;
+                color: #ffffff;
+            }
+        """)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(40, 40, 40, 40)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.dialog = QFrame(self)
+        self.dialog.setObjectName("dialogFrame")
+        self.dialog.setMinimumWidth(500)
+        self.dialog.setMaximumWidth(700)
+
+        dialog_layout = QVBoxLayout(self.dialog)
+        dialog_layout.setContentsMargins(24, 20, 24, 24)
+        dialog_layout.setSpacing(16)
+
+        # Title row + close button
+        title_row = QHBoxLayout()
+        title = QLabel("Add Application")
+        title.setStyleSheet("font-weight: 600; font-size: 16px; color: #ffffff;")
+        title_row.addWidget(title)
+        title_row.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setObjectName("closeBtn")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.close)
+        close_btn.setFixedSize(32, 32)
+        title_row.addWidget(close_btn)
+
+        dialog_layout.addLayout(title_row)
+
+        # Form
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(10)
+
+        self.company = QLineEdit()
+        self.company.setPlaceholderText("e.g., Google")
+        self.position = QLineEdit()
+        self.position.setPlaceholderText("e.g., Software Engineer")
+
+        self.status = QComboBox()
+        self.status.addItems([
+            "Applied",
+            "Interview Scheduled",
+            "Interviewed",
+            "Offer",
+            "Rejected",
+            "Withdrawn",
+        ])
+
+        self.company_website = QLineEdit()
+        self.company_website.setPlaceholderText("https://...")
+        self.location = QLineEdit()
+        self.location.setPlaceholderText("e.g., London, UK")
+        self.date_applied = QLineEdit()
+        self.date_applied.setPlaceholderText("YYYY-MM-DD")
+        self.contact_name = QLineEdit()
+        self.contact_name.setPlaceholderText("Recruiter name")
+        self.contact_email = QLineEdit()
+        self.contact_email.setPlaceholderText("email@company.com")
+        self.salary_range = QLineEdit()
+        self.salary_range.setPlaceholderText("e.g., £100k - £150k")
+        self.job_url = QLineEdit()
+        self.job_url.setPlaceholderText("https://...")
+
+        self.job_description = QTextEdit()
+        self.job_description.setPlaceholderText("Paste job description here...")
+        self.job_description.setFixedHeight(100)
+        self.notes = QTextEdit()
+        self.notes.setPlaceholderText("Additional notes...")
+        self.notes.setFixedHeight(80)
+
+        # Create labels with asterisks for required fields
+        form.addRow(self._create_label("Company", required=True), self.company)
+        form.addRow(self._create_label("Position", required=True), self.position)
+        form.addRow(self._create_label("Status", required=True), self.status)
+        form.addRow("Company website", self.company_website)
+        form.addRow("Location", self.location)
+        form.addRow("Date applied", self.date_applied)
+        form.addRow("Contact name", self.contact_name)
+        form.addRow("Contact email", self.contact_email)
+        form.addRow("Salary range", self.salary_range)
+        form.addRow("Job URL", self.job_url)
+        form.addRow("Job description", self.job_description)
+        form.addRow("Notes", self.notes)
+
+        dialog_layout.addLayout(form)
+
+        # Action buttons
+        actions = QHBoxLayout()
+        actions.addStretch()
+
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.close)
+        cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel.setFixedHeight(36)
+
+        save = QPushButton("Save")
+        save.setObjectName("saveBtn")
+        save.setCursor(Qt.CursorShape.PointingHandCursor)
+        save.clicked.connect(self._submit)
+        save.setFixedHeight(36)
+
+        actions.addWidget(cancel)
+        actions.addSpacing(8)
+        actions.addWidget(save)
+        dialog_layout.addLayout(actions)
+
+        outer.addWidget(self.dialog)
+
+        # Capture outside clicks
+        self.installEventFilter(self)
+
+        # Store base styles for validation
+        self._base_style = ""
+        self._error_style = "border: 2px solid #dc3545 !important;"
+
+    def _create_label(self, text: str, required: bool = False) -> QLabel:
+        """Create a form label with optional required indicator."""
+        label_text = f"{text} *" if required else text
+        label = QLabel(label_text)
+        if required:
+            label.setStyleSheet("color: #ffffff;")
+        return label
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fit_to_parent()
+        # Focus on first input
+        self.company.setFocus()
+
+    def _fit_to_parent(self):
+        """Resize overlay to match parent widget."""
+        p = self.parentWidget()
+        if p is not None:
+            self.setGeometry(p.rect())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def eventFilter(self, obj, event):
+        """Close overlay when clicking outside the dialog."""
+        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
+            if not self.dialog.geometry().contains(event.position().toPoint()):
+                self.close()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _submit(self):
+        """Validate and submit the form."""
+        company = self.company.text().strip()
+        position = self.position.text().strip()
+        status = self.status.currentText().strip()
+
+        # Validate required fields
+        is_valid = True
+        
+        if not company:
+            self.company.setStyleSheet(self._error_style)
+            is_valid = False
+        else:
+            self.company.setStyleSheet(self._base_style)
+            
+        if not position:
+            self.position.setStyleSheet(self._error_style)
+            is_valid = False
+        else:
+            self.position.setStyleSheet(self._base_style)
+
+        if not is_valid:
+            return
+
+        payload = {
+            "company": company,
+            "position": position,
+            "status": status,
+            "company_website": self.company_website.text().strip() or None,
+            "location": self.location.text().strip() or None,
+            "date_applied": self.date_applied.text().strip() or None,
+            "contact_name": self.contact_name.text().strip() or None,
+            "contact_email": self.contact_email.text().strip() or None,
+            "salary_range": self.salary_range.text().strip() or None,
+            "job_url": self.job_url.text().strip() or None,
+            "job_description": self.job_description.toPlainText().strip() or None,
+            "notes": self.notes.toPlainText().strip() or None,
+            "cv_pdf": None,
+            "cv_text": None,
+            "cover_letter_pdf": None,
+            "cover_letter_text": None,
+        }
+
+        self.on_submit(payload)
+        self.close()
+
+    def keyPressEvent(self, event):
+        """Handle Escape key to close overlay."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
 
 class MainWindow(QMainWindow):
 
@@ -176,7 +475,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("JobVault Libre")
 
         # Minimum size so the header always has room
-        self.setMinimumSize(820, 520)
+        # self.setMinimumSize(820, 520)
+        self.resize(1024,768)
+
+        # --- Database ---
+        self.db = JobDatabase("jobvault.db")
+        
+        # --- Palette ---
+        self.palette = QApplication.palette() 
 
         # --- Root container ---
         root = QWidget()
@@ -207,13 +513,13 @@ class MainWindow(QMainWindow):
 
         header_layout.addLayout(title_layout, stretch=1)
 
-        add_application_button = QPushButton("Add Application")
-        add_application_button.clicked.connect(self.add_application)
-        add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        add_application_button.setMinimumHeight(34)
-        
-        header_layout.addWidget(add_application_button, alignment=Qt.AlignmentFlag.AlignTop)
+        self.add_application_button = QPushButton("Add Application")
+        self.add_application_button.clicked.connect(self.add_application)
+        self.add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.add_application_button.setMinimumHeight(34)
+
+        header_layout.addWidget(self.add_application_button, alignment=Qt.AlignmentFlag.AlignTop)
 
         header_search_bar_layout.addLayout(header_layout, stretch=1)
 
@@ -267,16 +573,14 @@ class MainWindow(QMainWindow):
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
             }
-            
+
             QListView::item:hover {
                 border-radius: 2px;
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
             }""")
-        popup.setWindowOpacity(0.1)
 
         header_search_bar_layout.addWidget(self.searchbar)
-
         main_layout.addLayout(header_search_bar_layout)
 
         # --- Scrollable body (only this part scrolls) ---
@@ -287,6 +591,7 @@ class MainWindow(QMainWindow):
         self.body_layout.addStretch(1)  # keeps cards pinned to the top
 
         scroll = QScrollArea()
+        scroll.setMinimumSize(410, 400)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -294,130 +599,89 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(scroll, stretch=1)
 
-        self.query_all_job_apps()
-        self.display_job_apps()
+        self.job_applications = []
+        self.job_card_widgets = []
+        self._overlay = None
 
+        self.refresh_from_db()
+
+    # ---------- DB-backed methods ----------
     def add_application(self):
-        """ Adds an application to the scrollable body """
-        test_card = JobApplicationCard(
-            id=1, 
-            company="Google", 
-            position="Data Scientist", 
-            status="Applied", 
-            date_applied="18/12/1992",
-            location="London, UK",
-            contact_name="", 
-            contact_email="",
-            salary="50000",
-            url="",
-            job_description="Nice job",
-            notes="",
-            last_update="")
-
-        self.body_layout.insertWidget(self.body_layout.count() - 1, test_card, alignment=Qt.AlignmentFlag.AlignTop)
-        # TODO: Decide whether I want the cards small or stretched horizontally as it is now and whether to align left or center.
-        # self.body_layout.insertWidget(self.body_layout.count() - 1, test_card, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        """Open the in-window overlay popup to add a new job application."""
+        # Properly clean up existing overlay
+        if self._overlay is not None:
+            self._overlay.deleteLater()
+            self._overlay = None
+        
+        def on_submit(payload: dict):
+            self.db.add_job(**payload)
+            self.refresh_from_db()
+        
+        self._overlay = AddApplicationOverlay(self.centralWidget(), on_submit=on_submit)
+        self._overlay.show()
+        self._overlay.raise_()
 
     def query_all_job_apps(self):
-        """ Gets all jobs available. """
+        """Fetch all job applications from the database into self.job_applications."""
+        rows = self.db.get_all_jobs()
 
-        # TODO: Ensure that there are not too many jobs that crashes everything
-        # TODO: Get these from a database
-        self.job_applications = [
-            {
-                "id": 1,
-                "company": "Google",
-                "position": "Data Scientist",
-                "status": "Applied",
-                "date_applied": "18/12/1992",
-                "location": "London, UK",
-                "contact_name": "",
-                "contact_email": "",
-                "salary": "50000",
-                "url": "",
-                "job_description": "Nice job",
-                "notes": "",
-                "last_update": ""
-            },
-            {
-                "id": 2,
-                "company": "Microsoft",
-                "position": "Machine Learning Engineer",
-                "status": "Applied",
-                "date_applied": "20/01/1993",
-                "location": "Cambridge, UK",
-                "contact_name": "",
-                "contact_email": "",
-                "salary": "62000",
-                "url": "",
-                "job_description": "Work on ML systems",
-                "notes": "",
-                "last_update": ""
-            },
-            {
-                "id": 3,
-                "company": "Facebook",
-                "position": "Data Analyst",
-                "status": "Interview Scheduled",
-                "date_applied": "05/03/1993",
-                "location": "London, UK",
-                "contact_name": "",
-                "contact_email": "",
-                "salary": "48000",
-                "url": "",
-                "job_description": "Analyse platform data",
-                "notes": "",
-                "last_update": ""
-            },
-            {
-                "id": 4,
-                "company": "Amazon",
-                "position": "Business Intelligence Engineer",
-                "status": "Applied",
-                "date_applied": "11/04/1993",
-                "location": "Manchester, UK",
-                "contact_name": "",
-                "contact_email": "",
-                "salary": "55000",
-                "url": "",
-                "job_description": "Develop BI solutions",
-                "notes": "",
-                "last_update": ""
-            },
-            {
-                "id": 5,
-                "company": "IBM",
-                "position": "AI Researcher",
-                "status": "Rejected",
-                "date_applied": "30/05/1993",
-                "location": "London, UK",
-                "contact_name": "",
-                "contact_email": "",
-                "salary": "70000",
-                "url": "",
-                "job_description": "Research AI models",
-                "notes": "",
-                "last_update": ""
-            },]
-        
-        # TODO: Maybe these should be only the jobs that are added to self.job_card_widgets
-        self.job_companies = [job["company"] for job in self.job_applications]
-        self.job_positions = [job["position"] for job in self.job_applications]
-        self.job_locations = [job["location"] for job in self.job_applications]
+        # get_all_jobs returns:
+        # (id, company, company_website, position, status, location,
+        #  date_applied, contact_name, contact_email, salary_range,
+        #  job_url, job_description, notes, cv_text, cover_letter_text, last_update)
+        self.job_applications = []
+        for r in rows:
+            self.job_applications.append({
+                "id": r[0],
+                "company": r[1],
+                "company_website": r[2],
+                "position": r[3],
+                "status": r[4],
+                "location": r[5],
+                "date_applied": r[6],
+                "contact_name": r[7],
+                "contact_email": r[8],
+                "salary_range": r[9],
+                "job_url": r[10],
+                "job_description": r[11],
+                "notes": r[12],
+                "last_update": r[15],
+                # TODO: PDFs and extracted text are intentionally ignored in the UI.
+            })
+
+        self.job_companies = [j["company"] for j in self.job_applications if j.get("company")]
+        self.job_positions = [j["position"] for j in self.job_applications if j.get("position")]
+        self.job_locations = [j["location"] for j in self.job_applications if j.get("location")]
         self.completer_hints = self.job_companies + self.job_positions + self.job_locations
         self.update_completer_hints(self.completer_hints)
 
-    def display_job_apps(self):
+    # ---------- UI refresh ----------
+    def refresh_from_db(self):
+        self.query_all_job_apps()
+        self.rebuild_cards()
+
+    def rebuild_cards(self):
+        self.clear_cards()
         self.job_card_widgets = [JobApplicationCard(**job) for job in self.job_applications]
-        for widget in self.job_card_widgets:
-            self.body_layout.insertWidget(self.body_layout.count() - 1, widget, alignment=Qt.AlignmentFlag.AlignTop)
+        for w in self.job_card_widgets:
+            self.body_layout.insertWidget(self.body_layout.count() - 1, w, alignment=Qt.AlignmentFlag.AlignTop)
+
+    def clear_cards(self):
+        # remove all widgets except the final stretch item
+        for w in getattr(self, "job_card_widgets", []):
+            self.body_layout.removeWidget(w)
+            w.setParent(None)
+            w.deleteLater()
+        self.job_card_widgets = []
 
     def update_jobs_displayed(self, text):
+        t = (text or "").lower().strip()
         for widget in self.job_card_widgets:
-            # TODO: change this to all text not just the company and position
-            if (text.lower() in widget.company.lower() 
-                or text.lower() in widget.position.lower()
-                or text.lower() in widget.location.lower()):
+            if (
+                t in widget.company.lower()
+                or t in widget.position.lower()
+                or t in widget.location.lower()
+            ):
                 widget.show()
             else:
                 widget.hide()
@@ -425,8 +689,14 @@ class MainWindow(QMainWindow):
     def update_completer_hints(self, hints: list[str]):
         self.completer.setModel(QStringListModel(hints))
 
+    def closeEvent(self, event):
+        try:
+            self.db.close()
+        finally:
+            super().closeEvent(event)
+
+
 app = QApplication([])
 window = MainWindow()
-
 window.show()
 app.exec()
