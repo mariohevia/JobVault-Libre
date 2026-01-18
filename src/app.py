@@ -187,80 +187,84 @@ class AddApplicationOverlay(QWidget):
         super().__init__(parent)
         self.on_submit = on_submit
 
-        # Remove WA_DeleteOnClose to prevent crashes
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setObjectName("overlay")
-        
-        # Ensure proper stacking and visibility
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        self.setStyleSheet("""
-            QWidget#overlay {
+        
+        # Extract colors
+        window_bg = palette.color(QPalette.ColorRole.Window)
+        text_color = palette.color(QPalette.ColorRole.WindowText)
+        base_bg = palette.color(QPalette.ColorRole.Base)
+        button_bg = palette.color(QPalette.ColorRole.Button)
+        highlight = palette.color(QPalette.ColorRole.Highlight)
+        
+        # Create slightly lighter/darker variants
+        dialog_bg = window_bg.lighter(110)  # 10% lighter
+        border_color = window_bg.lighter(140)
+        hover_bg = button_bg.lighter(120)
+        
+        # Build stylesheet using system colors
+        self.setStyleSheet(f"""
+            QWidget#overlay {{
                 background-color: rgba(0, 0, 0, 180);
-            }
-            QFrame#dialogFrame {
-                background-color: #1a1a1a;
+            }}
+            QFrame#dialogFrame {{
+                background-color: {dialog_bg.name()};
                 border-radius: 12px;
-                border: 1px solid #3a3a3a;
-            }
-            QLabel {
-                color: #ffffff;
-            }
-            QLineEdit, QTextEdit {
-                background-color: #2a2a2a;
-                color: #ffffff;
-                border: 1px solid #3a3a3a;
+                border: 1px solid {border_color.name()};
+            }}
+            QLabel {{
+                color: {text_color.name()};
+            }}
+            QLineEdit, QTextEdit {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
-            }
-            QLineEdit:focus, QTextEdit:focus {
-                border: 1px solid #5a5a5a;
-            }
-            QComboBox {
-                background-color: #2a2a2a;
-                color: #ffffff;
-                border: 1px solid #3a3a3a;
+            }}
+            QLineEdit:focus, QTextEdit:focus {{
+                border: 1px solid {highlight.name()};
+            }}
+            QComboBox {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
-            }
-            QComboBox::drop-down {
-                border: none;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #2a2a2a;
-                color: #ffffff;
-                selection-background-color: #3a3a3a;
-            }
-            QPushButton {
-                background-color: #2a2a2a;
-                color: #ffffff;
-                border: 1px solid #3a3a3a;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                selection-background-color: {highlight.name()};
+            }}
+            QPushButton {{
+                background-color: {button_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #3a3a3a;
-            }
-            QPushButton#saveBtn {
-                background-color: #0d6efd;
-                border: 1px solid #0d6efd;
-            }
-            QPushButton#saveBtn:hover {
-                background-color: #0b5ed7;
-            }
-            QPushButton#closeBtn {
+            }}
+            QPushButton:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            QPushButton#saveBtn {{
+                background-color: {highlight.name()};
+                border: 1px solid {highlight.name()};
+            }}
+            QPushButton#saveBtn:hover {{
+                background-color: {highlight.darker(110).name()};
+            }}
+            QPushButton#closeBtn {{
                 background-color: transparent;
                 border: none;
                 font-size: 18px;
                 padding: 4px 8px;
-                color: #aaaaaa;
-            }
-            QPushButton#closeBtn:hover {
-                background-color: rgba(255, 255, 255, 20);
+            }}
+            QPushButton#closeBtn:hover {{
+                background-color: rgba(128, 128, 128, 50);
                 border-radius: 6px;
-                color: #ffffff;
-            }
+            }}
         """)
 
         outer = QVBoxLayout(self)
@@ -617,7 +621,7 @@ class MainWindow(QMainWindow):
             self.db.add_job(**payload)
             self.refresh_from_db()
         
-        self._overlay = AddApplicationOverlay(self.centralWidget(), on_submit=on_submit)
+        self._overlay = AddApplicationOverlay(self.centralWidget(), self.palette, on_submit=on_submit)
         self._overlay.show()
         self._overlay.raise_()
 
