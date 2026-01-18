@@ -190,7 +190,7 @@ class AddApplicationOverlay(QWidget):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setObjectName("overlay")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        
+
         # Extract colors
         window_bg = palette.color(QPalette.ColorRole.Window)
         text_color = palette.color(QPalette.ColorRole.WindowText)
@@ -233,6 +233,9 @@ class AddApplicationOverlay(QWidget):
                 border-radius: 6px;
                 padding: 6px;
             }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
             QComboBox QAbstractItemView {{
                 background-color: {base_bg.name()};
                 color: {text_color.name()};
@@ -244,6 +247,7 @@ class AddApplicationOverlay(QWidget):
                 border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 8px 16px;
+                font-size: 13px;
             }}
             QPushButton:hover {{
                 background-color: {hover_bg.name()};
@@ -260,10 +264,32 @@ class AddApplicationOverlay(QWidget):
                 border: none;
                 font-size: 18px;
                 padding: 4px 8px;
+                color: {text_color.darker(150).name()};
             }}
             QPushButton#closeBtn:hover {{
                 background-color: rgba(128, 128, 128, 50);
                 border-radius: 6px;
+                color: {text_color.name()};
+            }}
+            QScrollArea {{
+                border: none;
+                background-color: transparent;
+            }}
+            QScrollBar:vertical {{
+                background-color: {base_bg.name()};
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {border_color.name()};
+                border-radius: 6px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
             }}
         """)
 
@@ -273,17 +299,16 @@ class AddApplicationOverlay(QWidget):
 
         self.dialog = QFrame(self)
         self.dialog.setObjectName("dialogFrame")
-        self.dialog.setMinimumWidth(500)
-        self.dialog.setMaximumWidth(700)
+        self.dialog.setMinimumSize(200,500)
 
         dialog_layout = QVBoxLayout(self.dialog)
         dialog_layout.setContentsMargins(24, 20, 24, 24)
         dialog_layout.setSpacing(16)
 
-        # Title row + close button
+        # Title row + close button (NOT scrollable)
         title_row = QHBoxLayout()
         title = QLabel("Add Application")
-        title.setStyleSheet("font-weight: 600; font-size: 16px; color: #ffffff;")
+        title.setStyleSheet(f"font-weight: 600; font-size: 16px; color: {text_color.name()};")
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -295,6 +320,18 @@ class AddApplicationOverlay(QWidget):
         title_row.addWidget(close_btn)
 
         dialog_layout.addLayout(title_row)
+
+        # Scrollable area for the form
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Container for form content
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 8, 0)  # Small right margin for scrollbar
+        scroll_layout.setSpacing(10)
 
         # Form
         form = QFormLayout()
@@ -354,9 +391,12 @@ class AddApplicationOverlay(QWidget):
         form.addRow("Job description", self.job_description)
         form.addRow("Notes", self.notes)
 
-        dialog_layout.addLayout(form)
+        scroll_layout.addLayout(form)
+        scroll_area.setWidget(scroll_content)
+        
+        dialog_layout.addWidget(scroll_area, 1)  # Stretch factor 1
 
-        # Action buttons
+        # Action buttons (NOT scrollable)
         actions = QHBoxLayout()
         actions.addStretch()
 
@@ -389,14 +429,11 @@ class AddApplicationOverlay(QWidget):
         """Create a form label with optional required indicator."""
         label_text = f"{text} *" if required else text
         label = QLabel(label_text)
-        if required:
-            label.setStyleSheet("color: #ffffff;")
         return label
 
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_parent()
-        # Focus on first input
         self.company.setFocus()
 
     def _fit_to_parent(self):
@@ -406,6 +443,7 @@ class AddApplicationOverlay(QWidget):
             self.setGeometry(p.rect())
 
     def resizeEvent(self, event):
+        """Handle window resize to keep overlay covering parent."""
         super().resizeEvent(event)
         self._fit_to_parent()
 
@@ -609,6 +647,14 @@ class MainWindow(QMainWindow):
 
         self.refresh_from_db()
 
+    def resizeEvent(self, event):
+        """Handle window resize - update overlay if it's open."""
+        super().resizeEvent(event)
+        
+        # Update overlay geometry when window is resized
+        if self._overlay is not None and self._overlay.isVisible():
+            self._overlay.setGeometry(self.centralWidget().rect())
+            
     # ---------- DB-backed methods ----------
     def add_application(self):
         """Open the in-window overlay popup to add a new job application."""
