@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QComboBox,
     QFormLayout,
+    QMessageBox,
 )
 
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
@@ -330,7 +331,12 @@ class AddApplicationOverlay(QWidget):
         # Title row + close button (NOT scrollable)
         title_row = QHBoxLayout()
         title = QLabel("Add Application")
-        title.setStyleSheet(f"font-weight: 600; font-size: 16px; color: {text_color.name()};")
+        title.setStyleSheet(f"""
+            font-weight: 600; 
+            font-size: 18px; 
+            color: {text_color.name()};
+            letter-spacing: -0.3px;
+        """)
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -654,18 +660,24 @@ class ViewApplicationOverlay(QWidget):
         self.dialog.setMinimumSize(200, 500)
 
         dialog_layout = QVBoxLayout(self.dialog)
-        dialog_layout.setContentsMargins(24, 20, 24, 24)
-        dialog_layout.setSpacing(16)
+        dialog_layout.setContentsMargins(32, 24, 32, 32)
+        dialog_layout.setSpacing(20)
 
         # Title row + close button (NOT scrollable)
         title_row = QHBoxLayout()
-        title = QLabel("Application details")
-        title.setStyleSheet(f"font-weight: 600; font-size: 16px; color: {text_color.name()};")
+        title = QLabel("Application Details")
+        title.setStyleSheet(f"""
+            font-weight: 600; 
+            font-size: 18px; 
+            color: {text_color.name()};
+            letter-spacing: -0.3px;
+        """)
         title_row.addWidget(title)
         title_row.addStretch()
 
         edit_btn = QPushButton("✎")  # or "Edit"
         edit_btn.setObjectName("editBtn")
+        edit_btn.setToolTip("Edit application")
         edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         edit_btn.setFixedSize(32, 32)
         edit_btn.clicked.connect(self._open_edit_overlay)
@@ -715,8 +727,8 @@ class ViewApplicationOverlay(QWidget):
 
         for label_text, key in fields:
             value = self.job.get(key, "")
-            if value is None:
-                value = ""
+            if value is None or value == "":
+                value = "—"
             value_label = QLabel(str(value))
             value_label.setObjectName("valueLabel")
             value_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -781,10 +793,17 @@ class ViewApplicationOverlay(QWidget):
         return super().eventFilter(obj, event)
 
     def _remove_clicked(self):
-        job_id = self.job.get("id")
-        if job_id is not None:
-            self.on_remove(int(job_id))
-        self.close()
+        reply = QMessageBox.question(
+            self,
+            "Confirm Deletion",
+            f"Are you sure you want to delete the application for {self.job.get('position', 'this position')}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            job_id = self.job.get("id")
+            if job_id is not None:
+                self.on_remove(int(job_id))
+            self.close()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
@@ -910,8 +929,13 @@ class EditApplicationOverlay(QWidget):
 
         # Title row
         title_row = QHBoxLayout()
-        title = QLabel("Edit application")
-        title.setStyleSheet(f"font-weight: 600; font-size: 16px; color: {text_color.name()};")
+        title = QLabel("Edit Application")
+        title.setStyleSheet(f"""
+            font-weight: 600; 
+            font-size: 18px; 
+            color: {text_color.name()};
+            letter-spacing: -0.3px;
+        """)
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -970,9 +994,6 @@ class EditApplicationOverlay(QWidget):
         self.notes = QTextEdit(self.job.get("notes") or "")
         self.notes.setFixedHeight(100)
 
-        self.last_update_label = QLabel(str(self.job.get("last_update", "") or ""))
-        self.last_update_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-
         form.addRow("Company", self.company)
         form.addRow("Position", self.position)
         form.addRow("Status", self.status)
@@ -985,7 +1006,6 @@ class EditApplicationOverlay(QWidget):
         form.addRow("Job URL", self.job_url)
         form.addRow("Job description", self.job_description)
         form.addRow("Notes", self.notes)
-        form.addRow("Last update", self.last_update_label)
 
         scroll_layout.addLayout(form)
         scroll_area.setWidget(scroll_content)
@@ -1044,10 +1064,17 @@ class EditApplicationOverlay(QWidget):
         return super().eventFilter(obj, event)
 
     def _remove_clicked(self):
-        job_id = self.job.get("id")
-        if job_id is not None:
-            self.on_remove(int(job_id))
-        self.close()
+        reply = QMessageBox.question(
+            self,
+            "Confirm Deletion",
+            f"Are you sure you want to delete the application for {self.job.get('position', 'this position')}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            job_id = self.job.get("id")
+            if job_id is not None:
+                self.on_remove(int(job_id))
+            self.close()
 
     def _save_clicked(self):
         job_id = self.job.get("id")
