@@ -43,9 +43,11 @@ class JobApplicationCard(QWidget):
         job_description,
         notes,
         last_update,
+        on_view=None,
         **_ignored,  # allows extra fields without crashing
     ):
         super().__init__()
+        self.on_view = on_view
         self.id = id
         self.company = company or ""
         self.company_website = company_website or ""
@@ -132,6 +134,7 @@ class JobApplicationCard(QWidget):
 
         self.details_button = QPushButton("More details")
         self.details_button.setObjectName("detailsButton")
+        self.details_button.clicked.connect(self._handle_view_clicked) 
         bottom_row.addWidget(self.details_button)
 
         # Add rows to main card layout
@@ -176,7 +179,26 @@ class JobApplicationCard(QWidget):
             """
         )
 
-# TODO: This code is entirely done by LLM and has some wrong things
+    def _handle_view_clicked(self):
+        if callable(self.on_view):
+            # pass a job dict (same shape you already use elsewhere)
+            self.on_view({
+                "id": self.id,
+                "company": self.company,
+                "company_website": self.company_website,
+                "position": self.position,
+                "status": self.status,
+                "location": self.location,
+                "date_applied": self.date_applied,
+                "contact_name": self.contact_name,
+                "contact_email": self.contact_email,
+                "salary_range": self.salary_range,
+                "job_url": self.job_url,
+                "job_description": self.job_description,
+                "notes": self.notes,
+                "last_update": self.last_update,
+            })
+
 class AddApplicationOverlay(QWidget):
     """
     An in-window overlay (covers parent) that closes when:
@@ -294,7 +316,7 @@ class AddApplicationOverlay(QWidget):
         """)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(40, 40, 40, 40)
+        outer.setContentsMargins(60, 40, 60, 80)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.dialog = QFrame(self)
@@ -508,6 +530,573 @@ class AddApplicationOverlay(QWidget):
         else:
             super().keyPressEvent(event)
 
+# TODO: Sometimes text gets cut in half when the window is thin. Didn't fix this because I plan to change the view.
+class ViewApplicationOverlay(QWidget):
+    """
+    In-window overlay (covers parent) that closes when:
+    - pressing the X button
+    - clicking outside the popup panel
+    - pressing Escape
+
+    Shows all values (read-only) and provides a Remove button.
+    """
+    def __init__(self, parent: QWidget, palette: QPalette, job: dict, on_remove, on_edit):
+        super().__init__(parent)
+        self.job = dict(job)  # defensive copy
+        self.on_remove = on_remove
+        self.on_edit = on_edit
+
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("overlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        # Extract colours
+        window_bg = palette.color(QPalette.ColorRole.Window)
+        text_color = palette.color(QPalette.ColorRole.WindowText)
+        base_bg = palette.color(QPalette.ColorRole.Base)
+        button_bg = palette.color(QPalette.ColorRole.Button)
+        highlight = palette.color(QPalette.ColorRole.Highlight)
+
+        dialog_bg = window_bg.lighter(110)
+        border_color = window_bg.lighter(140)
+        hover_bg = button_bg.lighter(120)
+
+        self.setStyleSheet(f"""
+            QWidget#overlay {{
+                background-color: rgba(0, 0, 0, 180);
+            }}
+            QFrame#dialogFrame {{
+                background-color: {dialog_bg.name()};
+                border-radius: 12px;
+                border: 1px solid {border_color.name()};
+            }}
+            QLabel {{
+                color: {text_color.name()};
+            }}
+            QLabel#valueLabel {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: none;
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            QPushButton {{
+                background-color: {button_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            QPushButton#removeBtn {{
+                background-color: rgba(220, 53, 69, 210);
+                border: 1px solid rgba(220, 53, 69, 210);
+                color: white;
+            }}
+            QPushButton#removeBtn:hover {{
+                background-color: rgba(220, 53, 69, 235);
+            }}
+            QPushButton#closeBtn {{
+                background-color: transparent;
+                border: none;
+                font-size: 18px;
+                padding: 4px 8px;
+                color: {text_color.darker(150).name()};
+            }}
+            QPushButton#closeBtn:hover {{
+                background-color: rgba(128, 128, 128, 50);
+                border-radius: 6px;
+                color: {text_color.name()};
+            }}
+            QPushButton#editBtn {{
+                background-color: transparent;
+                border: none;
+                font-size: 16px;
+                padding: 4px 8px;
+                color: {text_color.darker(150).name()};
+            }}
+            QPushButton#editBtn:hover {{
+                background-color: rgba(128, 128, 128, 50);
+                border-radius: 6px;
+                color: {text_color.name()};
+            }}
+            QScrollArea {{
+                border: none;
+                background-color: transparent;
+            }}
+            QScrollBar:vertical {{
+                background-color: {base_bg.name()};
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {border_color.name()};
+                border-radius: 6px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(60, 40, 60, 80)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.dialog = QFrame(self)
+        self.dialog.setObjectName("dialogFrame")
+        self.dialog.setMinimumSize(200, 500)
+
+        dialog_layout = QVBoxLayout(self.dialog)
+        dialog_layout.setContentsMargins(24, 20, 24, 24)
+        dialog_layout.setSpacing(16)
+
+        # Title row + close button (NOT scrollable)
+        title_row = QHBoxLayout()
+        title = QLabel("Application details")
+        title.setStyleSheet(f"font-weight: 600; font-size: 16px; color: {text_color.name()};")
+        title_row.addWidget(title)
+        title_row.addStretch()
+
+        edit_btn = QPushButton("✎")  # or "Edit"
+        edit_btn.setObjectName("editBtn")
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.setFixedSize(32, 32)
+        edit_btn.clicked.connect(self._open_edit_overlay)
+        title_row.addWidget(edit_btn)
+
+        close_btn = QPushButton("✕")
+        close_btn.setObjectName("closeBtn")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.close)
+        close_btn.setFixedSize(32, 32)
+        title_row.addWidget(close_btn)
+
+        dialog_layout.addLayout(title_row)
+
+        # Scrollable area for the read-only fields
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 8, 0)
+        scroll_layout.setSpacing(10)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(10)
+
+        fields = [
+            ("Company", "company"),
+            ("Position", "position"),
+            ("Status", "status"),
+            ("Company website", "company_website"),
+            ("Location", "location"),
+            ("Date applied", "date_applied"),
+            ("Contact name", "contact_name"),
+            ("Contact email", "contact_email"),
+            ("Salary range", "salary_range"),
+            ("Job URL", "job_url"),
+            ("Job description", "job_description"),
+            ("Notes", "notes"),
+            ("Last update", "last_update"),
+        ]
+
+        for label_text, key in fields:
+            value = self.job.get(key, "")
+            if value is None:
+                value = ""
+            value_label = QLabel(str(value))
+            value_label.setObjectName("valueLabel")
+            value_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+            value_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+                | Qt.TextInteractionFlag.TextSelectableByKeyboard
+            )
+            value_label.setWordWrap(True)
+            form.addRow(label_text, value_label)
+
+        scroll_layout.addLayout(form)
+        scroll_area.setWidget(scroll_content)
+        dialog_layout.addWidget(scroll_area, 1)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+
+        close = QPushButton("Close")
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(self.close)
+        close.setFixedHeight(36)
+
+        remove = QPushButton("Delete")
+        remove.setObjectName("removeBtn")
+        remove.setCursor(Qt.CursorShape.PointingHandCursor)
+        remove.clicked.connect(self._remove_clicked)
+        remove.setFixedHeight(36)
+
+        actions.addWidget(close)
+        actions.addSpacing(8)
+        actions.addWidget(remove)
+        dialog_layout.addLayout(actions)
+
+        outer.addWidget(self.dialog)
+
+        # Capture outside clicks
+        self.installEventFilter(self)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fit_to_parent()
+
+    def _open_edit_overlay(self):
+        if callable(self.on_edit):
+            self.on_edit(self.job)
+        self.close()
+
+    def _fit_to_parent(self):
+        p = self.parentWidget()
+        if p is not None:
+            self.setGeometry(p.rect())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def eventFilter(self, obj, event):
+        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
+            if not self.dialog.geometry().contains(event.position().toPoint()):
+                self.close()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _remove_clicked(self):
+        job_id = self.job.get("id")
+        if job_id is not None:
+            self.on_remove(int(job_id))
+        self.close()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
+
+class EditApplicationOverlay(QWidget):
+    def __init__(self, parent: QWidget, palette: QPalette, job: dict, on_save, on_remove):
+        super().__init__(parent)
+        self.job = dict(job)          # original snapshot
+        self.on_save = on_save        # fn(job_id:int, changes:dict)
+        self.on_remove = on_remove    # fn(job_id:int)
+
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("overlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        # Colours (same approach as before)
+        window_bg = palette.color(QPalette.ColorRole.Window)
+        text_color = palette.color(QPalette.ColorRole.WindowText)
+        base_bg = palette.color(QPalette.ColorRole.Base)
+        button_bg = palette.color(QPalette.ColorRole.Button)
+        highlight = palette.color(QPalette.ColorRole.Highlight)
+
+        dialog_bg = window_bg.lighter(110)
+        border_color = window_bg.lighter(140)
+        hover_bg = button_bg.lighter(120)
+
+        self.setStyleSheet(f"""
+            QWidget#overlay {{ background-color: rgba(0, 0, 0, 180); }}
+            QFrame#dialogFrame {{
+                background-color: {dialog_bg.name()};
+                border-radius: 12px;
+                border: 1px solid {border_color.name()};
+            }}
+            QLabel {{ color: {text_color.name()}; }}
+            QLineEdit, QTextEdit {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            QLineEdit:focus, QTextEdit:focus {{
+                border: 1px solid {highlight.name()};
+            }}
+            QComboBox {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            QComboBox::drop-down {{ border: none; }}
+            QComboBox QAbstractItemView {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                selection-background-color: {highlight.name()};
+            }}
+            QPushButton {{
+                background-color: {button_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{ background-color: {hover_bg.name()}; }}
+            QPushButton#saveBtn {{
+                background-color: {highlight.name()};
+                border: 1px solid {highlight.name()};
+            }}
+            QPushButton#saveBtn:hover {{
+                background-color: {highlight.darker(110).name()};
+            }}
+            QPushButton#removeBtn {{
+                background-color: rgba(220, 53, 69, 210);
+                border: 1px solid rgba(220, 53, 69, 210);
+                color: white;
+            }}
+            QPushButton#removeBtn:hover {{
+                background-color: rgba(220, 53, 69, 235);
+            }}
+            QPushButton#closeBtn {{
+                background-color: transparent;
+                border: none;
+                font-size: 18px;
+                padding: 4px 8px;
+                color: {text_color.darker(150).name()};
+            }}
+            QPushButton#closeBtn:hover {{
+                background-color: rgba(128, 128, 128, 50);
+                border-radius: 6px;
+                color: {text_color.name()};
+            }}
+            QScrollArea {{ border: none; background-color: transparent; }}
+            QScrollBar:vertical {{
+                background-color: {base_bg.name()};
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {border_color.name()};
+                border-radius: 6px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{ background-color: {hover_bg.name()}; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
+        """)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(60, 40, 60, 80)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.dialog = QFrame(self)
+        self.dialog.setObjectName("dialogFrame")
+        self.dialog.setMinimumSize(200, 500)
+
+        dialog_layout = QVBoxLayout(self.dialog)
+        dialog_layout.setContentsMargins(24, 20, 24, 24)
+        dialog_layout.setSpacing(16)
+
+        # Title row
+        title_row = QHBoxLayout()
+        title = QLabel("Edit application")
+        title.setStyleSheet(f"font-weight: 600; font-size: 16px; color: {text_color.name()};")
+        title_row.addWidget(title)
+        title_row.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setObjectName("closeBtn")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.close)
+        close_btn.setFixedSize(32, 32)
+        title_row.addWidget(close_btn)
+        dialog_layout.addLayout(title_row)
+
+        # Scrollable form
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 8, 0)
+        scroll_layout.setSpacing(10)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(10)
+
+        # Editable widgets
+        self.company = QLineEdit(self.job.get("company") or "")
+        self.company_website = QLineEdit(self.job.get("company_website") or "")
+        self.position = QLineEdit(self.job.get("position") or "")
+
+        self.status = QComboBox()
+        self.status.addItems([
+            "Applied",
+            "Interview Scheduled",
+            "Interviewed",
+            "Offer",
+            "Rejected",
+            "Withdrawn",
+        ])
+        current_status = (self.job.get("status") or "").strip()
+        idx = self.status.findText(current_status)
+        self.status.setCurrentIndex(idx if idx >= 0 else 0)
+
+        self.location = QLineEdit(self.job.get("location") or "")
+        self.date_applied = QLineEdit(self.job.get("date_applied") or "")
+        self.contact_name = QLineEdit(self.job.get("contact_name") or "")
+        self.contact_email = QLineEdit(self.job.get("contact_email") or "")
+        self.salary_range = QLineEdit(self.job.get("salary_range") or "")
+        self.job_url = QLineEdit(self.job.get("job_url") or "")
+
+        self.job_description = QTextEdit(self.job.get("job_description") or "")
+        self.job_description.setFixedHeight(120)
+        self.notes = QTextEdit(self.job.get("notes") or "")
+        self.notes.setFixedHeight(100)
+
+        self.last_update_label = QLabel(str(self.job.get("last_update", "") or ""))
+        self.last_update_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+        form.addRow("Company", self.company)
+        form.addRow("Position", self.position)
+        form.addRow("Status", self.status)
+        form.addRow("Company website", self.company_website)
+        form.addRow("Location", self.location)
+        form.addRow("Date applied", self.date_applied)
+        form.addRow("Contact name", self.contact_name)
+        form.addRow("Contact email", self.contact_email)
+        form.addRow("Salary range", self.salary_range)
+        form.addRow("Job URL", self.job_url)
+        form.addRow("Job description", self.job_description)
+        form.addRow("Notes", self.notes)
+        form.addRow("Last update", self.last_update_label)
+
+        scroll_layout.addLayout(form)
+        scroll_area.setWidget(scroll_content)
+        dialog_layout.addWidget(scroll_area, 1)
+
+        # Actions
+        actions = QHBoxLayout()
+        actions.addStretch()
+
+        cancel = QPushButton("Cancel")
+        cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel.clicked.connect(self.close)
+        cancel.setFixedHeight(36)
+
+        remove = QPushButton("Delete")
+        remove.setObjectName("removeBtn")
+        remove.setCursor(Qt.CursorShape.PointingHandCursor)
+        remove.clicked.connect(self._remove_clicked)
+        remove.setFixedHeight(36)
+
+        save = QPushButton("Save")
+        save.setObjectName("saveBtn")
+        save.setCursor(Qt.CursorShape.PointingHandCursor)
+        save.clicked.connect(self._save_clicked)
+        save.setFixedHeight(36)
+
+        actions.addWidget(cancel)
+        actions.addSpacing(8)
+        actions.addWidget(remove)
+        actions.addSpacing(8)
+        actions.addWidget(save)
+        dialog_layout.addLayout(actions)
+
+        outer.addWidget(self.dialog)
+
+        self.installEventFilter(self)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fit_to_parent()
+
+    def _fit_to_parent(self):
+        p = self.parentWidget()
+        if p is not None:
+            self.setGeometry(p.rect())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def eventFilter(self, obj, event):
+        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
+            if not self.dialog.geometry().contains(event.position().toPoint()):
+                self.close()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _remove_clicked(self):
+        job_id = self.job.get("id")
+        if job_id is not None:
+            self.on_remove(int(job_id))
+        self.close()
+
+    def _save_clicked(self):
+        job_id = self.job.get("id")
+        if job_id is None:
+            return
+
+        # Read current values
+        current = {
+            "company": self.company.text(),
+            "company_website": self.company_website.text(),
+            "position": self.position.text(),
+            "status": self.status.currentText(),
+            "location": self.location.text(),
+            "date_applied": self.date_applied.text(),
+            "contact_name": self.contact_name.text(),
+            "contact_email": self.contact_email.text(),
+            "salary_range": self.salary_range.text(),
+            "job_url": self.job_url.text(),
+            "job_description": self.job_description.toPlainText(),
+            "notes": self.notes.toPlainText(),
+        }
+
+        # Convert empty strings to None (so DB stores NULL, like your add overlay)
+        def norm(v: str):
+            v = (v or "").strip()
+            return v if v else None
+
+        current_norm = {k: norm(v) for k, v in current.items()}
+
+        # Only send changed fields
+        changes = {}
+        for k, new_v in current_norm.items():
+            old_v = self.job.get(k)
+            # normalise old side similarly for stable comparison
+            old_v_norm = norm(old_v) if isinstance(old_v, str) else (old_v if old_v is not None else None)
+            if new_v != old_v_norm:
+                changes[k] = new_v
+
+        if changes:
+            self.on_save(int(job_id), changes)
+
+        self.close()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
+
 class MainWindow(QMainWindow):
 
     ROWS_COMPLETER = 2
@@ -671,6 +1260,53 @@ class MainWindow(QMainWindow):
         self._overlay.show()
         self._overlay.raise_()
 
+    def open_view_overlay_for_job(self, job: dict):
+        if self._overlay is not None:
+            self._overlay.deleteLater()
+            self._overlay = None
+
+        def on_remove(job_id: int):
+            self.db.remove_job(job_id)
+            self.refresh_from_db()
+
+        def on_edit(job_payload: dict):
+            # close view overlay happens inside _open_edit_overlay
+            self.open_edit_overlay_for_job(job_payload)
+
+        self._overlay = ViewApplicationOverlay(
+            self.centralWidget(),
+            self.palette,
+            job=job,
+            on_remove=on_remove,
+            on_edit=on_edit,
+        )
+        self._overlay.show()
+        self._overlay.raise_()
+
+    def open_edit_overlay_for_job(self, job: dict):
+        if self._overlay is not None:
+            self._overlay.deleteLater()
+            self._overlay = None
+
+        def on_remove(job_id: int):
+            self.db.remove_job(job_id)
+            self.refresh_from_db()
+
+        def on_save(job_id: int, changes: dict):
+            # changes contains only keys that actually changed
+            self.db.edit_job(job_id, **changes)
+            self.refresh_from_db()
+
+        self._overlay = EditApplicationOverlay(
+            self.centralWidget(),
+            self.palette,
+            job=job,
+            on_save=on_save,
+            on_remove=on_remove,
+        )
+        self._overlay.show()
+        self._overlay.raise_()
+
     def query_all_job_apps(self):
         """Fetch all job applications from the database into self.job_applications."""
         rows = self.db.get_all_jobs()
@@ -712,9 +1348,18 @@ class MainWindow(QMainWindow):
 
     def rebuild_cards(self):
         self.clear_cards()
-        self.job_card_widgets = [JobApplicationCard(**job) for job in self.job_applications]
-        for w in self.job_card_widgets:
-            self.body_layout.insertWidget(self.body_layout.count() - 1, w, alignment=Qt.AlignmentFlag.AlignTop)
+
+        self.job_card_widgets = []
+        for job in self.job_applications:
+            w = JobApplicationCard(
+                **job,
+                on_view=self.open_view_overlay_for_job,  # <- MainWindow method
+            )
+            self.job_card_widgets.append(w)
+            self.body_layout.insertWidget(
+                self.body_layout.count() - 1, w, alignment=Qt.AlignmentFlag.AlignTop
+            )
+
 
     def clear_cards(self):
         # remove all widgets except the final stretch item
