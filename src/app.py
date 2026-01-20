@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QMainWindow,
     QApplication,
@@ -19,9 +22,9 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
-from PyQt6.QtGui import QIcon, QPalette
+from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
 
-from database import JobDatabase  # your database.py file
+from database import JobDatabase, get_app_paths_for_user
 
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")
@@ -1128,16 +1131,18 @@ class MainWindow(QMainWindow):
 
     ROWS_COMPLETER = 2
 
-    def __init__(self):
+    def __init__(self, user_paths):
         super().__init__()
         self.setWindowTitle("JobVault Libre")
 
         # Minimum size so the header always has room
         # self.setMinimumSize(820, 520)
         self.resize(1024,768)
+        self.setMinimumWidth(450)
 
         # --- Database ---
-        self.db = JobDatabase("jobvault.db")
+        self.user_paths = user_paths
+        self.db = JobDatabase(self.user_paths["db"])
         
         # --- Palette ---
         self.palette = QApplication.palette() 
@@ -1163,10 +1168,36 @@ class MainWindow(QMainWindow):
         title_layout.setContentsMargins(0, 0, 0, 0)
         title_layout.setSpacing(4)
 
-        title_label = QLabel("<h1>JobVault Libre</h1>")
+        title_logo_layout = QHBoxLayout()
+        title_logo_layout.setSpacing(10)
+        title_logo_layout.setContentsMargins(0, 0, 0, 0)
+
+        logo_label = QLabel()
+        pixmap = QPixmap(resource_path("assets/JV_logo.png"))
+        logo_label.setPixmap(
+            pixmap.scaled(
+                42, 42,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+        )
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        title_label = QLabel(
+            '<span style="font-size:24pt; font-weight:600; color: rgb(19, 64, 109);">'
+            'JobVault </span> '
+            '<span style="font-size:16pt; font-weight:500; color: rgb(120, 200, 80);">'
+            'Libre</span>'
+        )
+        title_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         subtitle_label = QLabel("Track and manage your job applications")
 
-        title_layout.addWidget(title_label)
+        title_logo_layout.addWidget(logo_label)
+        title_logo_layout.addWidget(title_label)
+        title_logo_layout.addStretch()
+
+        # title_layout.addWidget(title_label)
+        title_layout.addLayout(title_logo_layout)
         title_layout.addWidget(subtitle_label)
 
         header_layout.addLayout(title_layout, stretch=1)
@@ -1417,8 +1448,18 @@ class MainWindow(QMainWindow):
         finally:
             super().closeEvent(event)
 
+def resource_path(relative_path: str) -> str:
+    if hasattr(sys, "_MEIPASS"):
+        return str(Path(sys._MEIPASS) / relative_path)
+    return str(Path(relative_path).resolve())
 
-app = QApplication([])
-window = MainWindow()
-window.show()
-app.exec()
+def main():
+    app = QApplication([])
+    app.setWindowIcon(QIcon(resource_path("assets/JV_logo.png")))
+    user_paths = get_app_paths_for_user("JobVaultLibre", user_id="Default")
+    window = MainWindow(user_paths)
+    window.show()
+    app.exec()
+
+if __name__ == "__main__":
+    main()
