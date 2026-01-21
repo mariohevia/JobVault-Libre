@@ -111,3 +111,5 @@ This will produce:
 ```
 JobVault_Libre-x86_64.AppImage
 ```
+
+To register the the AppImage as a desktop application in Linux you can run `sudo .\create_desktop.sh`
