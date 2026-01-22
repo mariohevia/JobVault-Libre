@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
-from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
+from PyQt6.QtGui import QIcon, QPalette, QPixmap
 
 from myapp.database import JobDatabase
 

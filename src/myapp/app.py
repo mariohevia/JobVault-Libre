@@ -28,7 +28,8 @@ from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
 
 from myapp.database import JobDatabase
 from myapp.tracker import TrackerPage
-from myapp.utils import resource_path, get_app_paths_for_user
+from myapp.profile import ProfilePage
+from myapp.utils import get_app_paths_for_user
 
 class MainWindow(QMainWindow):
 
@@ -88,8 +89,8 @@ class MainWindow(QMainWindow):
         self.btn_applications = QPushButton("Applications")
         self.btn_applications.setCheckable(True)
 
-        self.btn_other = QPushButton("Another page")
-        self.btn_other.setCheckable(True)
+        self.btn_profile = QPushButton("Profile")
+        self.btn_profile.setCheckable(True)
 
         # horizontal layout just for logo + title
         nav_header_layout = QHBoxLayout()
@@ -103,7 +104,7 @@ class MainWindow(QMainWindow):
         nav_layout.addLayout(nav_header_layout)
         nav_layout.addSpacing(12)
         nav_layout.addWidget(self.btn_applications)
-        nav_layout.addWidget(self.btn_other)
+        nav_layout.addWidget(self.btn_profile)
         nav_layout.addStretch()
 
         root_layout.addWidget(nav)
@@ -115,19 +116,15 @@ class MainWindow(QMainWindow):
         self.applications_page = TrackerPage(self.db, self.palette, parent=self)
         self.stack.addWidget(self.applications_page)
 
-        # TODO: Change this placeholder page
-        self.other_page = QWidget()
-        other_layout = QVBoxLayout(self.other_page)
-        other_label = QLabel("New page content goes here")
-        other_layout.addWidget(other_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.stack.addWidget(self.other_page)
+        self.profile_page = ProfilePage(self.palette, paths=self.user_paths)
+        self.stack.addWidget(self.profile_page)
 
         # --- Wire up navigation ---
         self.btn_applications.clicked.connect(
             lambda: self._switch_page(self.applications_page, self.btn_applications)
         )
-        self.btn_other.clicked.connect(
-            lambda: self._switch_page(self.other_page, self.btn_other)
+        self.btn_profile.clicked.connect(
+            lambda: self._switch_page(self.profile_page, self.btn_profile)
         )
 
         # Start on applications page
@@ -135,7 +132,7 @@ class MainWindow(QMainWindow):
 
     def _switch_page(self, page: QWidget, clicked_button: QPushButton):
         # Make sure only one nav button looks "active"
-        for btn in (self.btn_applications, self.btn_other):
+        for btn in (self.btn_applications, self.btn_profile):
             btn.setChecked(btn is clicked_button)
 
         self.stack.setCurrentWidget(page)

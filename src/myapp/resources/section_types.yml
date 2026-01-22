@@ -1,0 +1,139 @@
+version: 1
+
+sections:
+  - type: experience
+    default_title: "Experience"
+    description: "Jobs, roles, and internships."
+    icon: "briefcase"          # purely for UI
+    default_order: 20
+    enabled_by_default: true
+    allow_multiple_items: true
+
+    # Section-level options
+    presets:
+      include_section_by_default: true
+      max_items_suggested: 5     # for builder recommendations
+
+    item_label:
+      singular: "Position"
+      plural: "Positions"
+
+    fields:
+      - name: company
+        label: "Company"
+        type: string
+        required: true
+
+      - name: role
+        label: "Job title"
+        type: string
+        required: true
+
+      - name: location
+        label: "Location"
+        type: string
+        required: false
+
+      - name: employment_type
+        label: "Employment type"
+        type: enum
+        required: false
+        options: [full_time, part_time, contract, internship]
+
+      - name: start_date
+        label: "Start date"
+        type: year_month       # your UI decides how to render this
+        required: true
+
+      - name: end_date
+        label: "End date"
+        type: year_month
+        required: false
+
+      - name: is_current
+        label: "I currently work here"
+        type: boolean
+        required: false
+        default: false
+
+      - name: summary
+        label: "Summary / responsibilities"
+        type: multiline
+        required: false
+
+      - name: achievements
+        label: "Achievements"
+        type: list
+        required: false
+        item:
+          type: object
+          fields:
+            - name: text
+              label: "Bullet"
+              type: multiline
+              required: true
+            - name: default_selected
+              label: "Include by default"
+              type: boolean
+              required: false
+              default: true
+            - name: tags
+              label: "Tags"
+              type: tags
+              required: false
+            - name: importance
+              label: "Importance (1-5)"
+              type: integer
+              required: false
+
+  - type: skills
+    default_title: "Skills"
+    description: "Technical and soft skills."
+    icon: "sparkles"
+    default_order: 40
+    enabled_by_default: true
+    allow_multiple_items: true
+
+    presets:
+      include_section_by_default: true
+      max_items_suggested: 12
+
+    item_label:
+      singular: "Skill"
+      plural: "Skills"
+
+    fields:
+      - name: category
+        label: "Category"
+        type: enum
+        required: true
+        options:
+          - programming
+          - machine_learning
+          - data
+          - cloud
+          - tools
+          - soft_skill
+          - other
+
+      - name: name
+        label: "Skill name"
+        type: string
+        required: true
+
+      - name: level
+        label: "Level"
+        type: enum
+        required: false
+        options: [beginner, intermediate, advanced]
+
+      - name: years
+        label: "Years of experience"
+        type: number
+        required: false
+
+      - name: default_selected
+        label: "Include by default"
+        type: boolean
+        required: false
+        default: true
