@@ -25,9 +25,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
 from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
 
-from database import JobDatabase, get_app_paths_for_user
+from database import JobDatabase
 from tracker import TrackerPage
-from utils import resource_path
+from utils import resource_path, get_app_paths_for_user
 
 class MainWindow(QMainWindow):
 
