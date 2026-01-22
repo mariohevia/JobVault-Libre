@@ -19,8 +19,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
 from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
 
-from database import JobDatabase
-from utils import resource_path
+from myapp.database import JobDatabase
 
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")

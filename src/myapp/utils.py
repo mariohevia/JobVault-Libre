@@ -3,6 +3,7 @@ import sys
 import re
 from pathlib import Path
 
+# TODO: Remove resource_path, first ensure it won't be needed anymore
 def resource_path(relative_path: str) -> str:
     if hasattr(sys, "_MEIPASS"):
         return str(Path(sys._MEIPASS) / relative_path)

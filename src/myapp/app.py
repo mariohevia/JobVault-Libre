@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from importlib import resources
 
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -25,9 +26,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
 from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
 
-from database import JobDatabase
-from tracker import TrackerPage
-from utils import resource_path, get_app_paths_for_user
+from myapp.database import JobDatabase
+from myapp.tracker import TrackerPage
+from myapp.utils import resource_path, get_app_paths_for_user
 
 class MainWindow(QMainWindow):
 
@@ -66,8 +67,9 @@ class MainWindow(QMainWindow):
         nav_layout.setContentsMargins(8, 8, 8, 8)
         nav_layout.setSpacing(8)
 
-        logo_label = QLabel()   
-        pixmap = QPixmap(resource_path("assets/JV_logo.png"))
+        logo_label = QLabel()
+        with resources.as_file(resources.files("myapp.assets").joinpath("JV_logo.png")) as path:
+            pixmap = QPixmap(str(path))
         logo_label.setPixmap(
             pixmap.scaled(
                 42, 42,
@@ -146,7 +148,9 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication([])
-    app.setWindowIcon(QIcon(resource_path("assets/JV_logo.png")))
+    with resources.as_file(resources.files("myapp.assets").joinpath("JV_logo.png")) as path:
+        app.setWindowIcon(QIcon(str(path)))
+    
     user_paths = get_app_paths_for_user("JobVaultLibre", user_id="Default")
     window = MainWindow(user_paths)
     window.show()
