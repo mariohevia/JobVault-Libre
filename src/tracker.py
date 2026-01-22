@@ -1138,33 +1138,13 @@ class TrackerPage(QWidget):
         main_layout.setSpacing(12)
 
         # --- Header ---
-        header_search_bar_layout = QVBoxLayout()
-        header_search_bar_layout.setContentsMargins(0, 0, 0, 0)
-        header_search_bar_layout.setSpacing(12)
-
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(12)
 
         title_layout = QVBoxLayout()
         title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(4)
-
-        subtitle_label = QLabel("Track and manage your job applications")
-
-        title_layout.addWidget(subtitle_label)
-
-        header_layout.addLayout(title_layout, stretch=1)
-
-        self.add_application_button = QPushButton("Add Application")
-        self.add_application_button.clicked.connect(self.add_application)
-        self.add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.add_application_button.setMinimumHeight(34)
-
-        header_layout.addWidget(self.add_application_button, alignment=Qt.AlignmentFlag.AlignTop)
-
-        header_search_bar_layout.addLayout(header_layout, stretch=1)
+        title_layout.setSpacing(8)
 
         # --- Search bar ---
         # TODO: Figure out how to make the border round (StyleSheet is not working for that)
@@ -1223,8 +1203,18 @@ class TrackerPage(QWidget):
                 color: palette(highlighted-text);
             }""")
 
-        header_search_bar_layout.addWidget(self.searchbar)
-        main_layout.addLayout(header_search_bar_layout)
+        title_layout.addWidget(self.searchbar)
+        header_layout.addLayout(title_layout, stretch=1)
+
+        self.add_application_button = QPushButton("Add Application")
+        self.add_application_button.clicked.connect(self.add_application)
+        self.add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.add_application_button.setMinimumHeight(34)
+
+        header_layout.addWidget(self.add_application_button, alignment=Qt.AlignmentFlag.AlignTop)
+
+        main_layout.addLayout(header_layout)
 
         # --- Scrollable body (only this part scrolls) ---
         body_container = QWidget()
