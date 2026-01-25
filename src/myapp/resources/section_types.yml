@@ -1,18 +1,56 @@
 version: 1
 
+# SECTION STRUCTURE:
+# Every section must include:
+#   - name: unique identifier for the section
+#   - default_title: display name shown in the UI
+#   - description: explanation of what this section contains
+#   - icon: icon identifier for UI display (can be empty string)
+#   - allow_multiple: whether users can add multiple items to this section
+#   - item_label: object with 'singular' and 'plural' labels for items
+#   - fields: array of field definitions
+#
+# FIELD STRUCTURE:
+# Every field must include:
+#   - name: unique identifier for the field
+#   - label: display name shown in the UI
+#   - type: one of [string, multiline, enum, year_month, object, number]
+#
+# Additional field requirements:
+#   - If type is 'enum', must also include 'options' (array of values)
+#   - If type is 'object', must also include 'fields' (nested field definitions)
+#
+# Additional field optionals:
+#   - If type is 'string', 'multiline', 'number' an additional 'placeholder' may be used
+#   - If type is 'string', 'multiline', 'enum', 'number' an additional 'default_value' may be used
+# 
+# Optional field properties:
+#   - multiple: whether this field can have multiple values
+#   - select_multiple: whether multiple values can be selected in the CV builder
+
 sections:
-  - type: experience
+  - name: summary
+    default_title: "Summary"
+    description: "A brief overview of your professional identity, key skills, and what you offer to employers."
+    icon: ""
+    allow_multiple: false
+
+    item_label:
+      singular: "Summary"
+      plural: "Summaries"
+
+    fields:
+      - name: summary
+        label: "Summary"
+        type: multiline
+        multiple: true
+        select_multiple: false
+
+  - name: experience
     default_title: "Experience"
     description: "Jobs, roles, and internships."
     icon: "briefcase"          # purely for UI
-    default_order: 20
-    enabled_by_default: true
-    allow_multiple_items: true
-
-    # Section-level options
-    presets:
-      include_section_by_default: true
-      max_items_suggested: 5     # for builder recommendations
+    allow_multiple: true
 
     item_label:
       singular: "Position"
@@ -22,91 +60,58 @@ sections:
       - name: company
         label: "Company"
         type: string
-        required: true
+
+      - name: company_description
+        label: "Company Description"
+        type: string
 
       - name: role
         label: "Job title"
         type: string
-        required: true
 
       - name: location
         label: "Location"
         type: string
-        required: false
 
       - name: employment_type
         label: "Employment type"
         type: enum
-        required: false
-        options: [full_time, part_time, contract, internship]
+        options: [full_time, part_time, contract, internship, hide]
 
       - name: start_date
         label: "Start date"
-        type: year_month       # your UI decides how to render this
-        required: true
+        type: year_month
 
       - name: end_date
         label: "End date"
         type: year_month
-        required: false
-
-      - name: is_current
-        label: "I currently work here"
-        type: boolean
-        required: false
-        default: false
 
       - name: summary
-        label: "Summary / responsibilities"
+        label: "Responsibilities"
         type: multiline
-        required: false
+        multiple: true
+        select_multiple: false
 
       - name: achievements
         label: "Achievements"
-        type: list
-        required: false
-        item:
-          type: object
-          fields:
-            - name: text
-              label: "Bullet"
-              type: multiline
-              required: true
-            - name: default_selected
-              label: "Include by default"
-              type: boolean
-              required: false
-              default: true
-            - name: tags
-              label: "Tags"
-              type: tags
-              required: false
-            - name: importance
-              label: "Importance (1-5)"
-              type: integer
-              required: false
+        type: multiline
+        multiple: true
+        select_multiple: true
 
-  - type: skills
+  - name: skills
     default_title: "Skills"
     description: "Technical and soft skills."
     icon: "sparkles"
-    default_order: 40
-    enabled_by_default: true
-    allow_multiple_items: true
-
-    presets:
-      include_section_by_default: true
-      max_items_suggested: 12
+    allow_multiple: true
 
     item_label:
-      singular: "Skill"
-      plural: "Skills"
+      singular: "Skill Category"
+      plural: "Skill Categories"
 
     fields:
       - name: category
         label: "Category"
         type: enum
-        required: true
         options:
           - programming
           - machine_learning
@@ -116,24 +121,19 @@ sections:
           - soft_skill
           - other
 
-      - name: name
-        label: "Skill name"
-        type: string
-        required: true
+      - name: skill
+        label: "Skill"
+        type: object
+        fields:
+          - name: name
+            label: "Name"
+            type: string
 
-      - name: level
-        label: "Level"
-        type: enum
-        required: false
-        options: [beginner, intermediate, advanced]
+          - name: level
+            label: "Level"
+            type: enum
+            options: [beginner, intermediate, advanced]
 
-      - name: years
-        label: "Years of experience"
-        type: number
-        required: false
-
-      - name: default_selected
-        label: "Include by default"
-        type: boolean
-        required: false
-        default: true
+          - name: years
+            label: "Years of experience"
+            type: number

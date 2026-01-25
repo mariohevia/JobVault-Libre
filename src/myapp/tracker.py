@@ -17,13 +17,32 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt, QStringListModel, QEvent
-from PyQt6.QtGui import QIcon, QPalette, QPixmap
+from PyQt6.QtGui import QIcon, QPalette
 
 from myapp.database import JobDatabase
 
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")
+EDIT_ICON = QIcon.fromTheme("document-edit")
 # search_icon = QIcon(":/icons/search.svg")  # or a local file
+
+STATUS_OPTIONS = [
+    "Applied",
+    "Interview Scheduled",
+    "Interviewed",
+    "Offer",
+    "Rejected",
+    "Withdrawn",
+    ]
+
+STATUS_COLORS = {
+    "Applied": "#3B82F6",              # Blue - neutral/informative
+    "Interview Scheduled": "#F59E0B",   # Amber - attention/upcoming
+    "Interviewed": "#8B5CF6",           # Purple - in progress/waiting
+    "Offer": "#2b7a2b",                 # Green - success/positive
+    "Rejected": "#EF4444",              # Red - negative/closed
+    "Withdrawn": "#6B7280",             # Gray - neutral/inactive
+}
 
 class JobApplicationCard(QWidget):
     def __init__(
@@ -63,7 +82,7 @@ class JobApplicationCard(QWidget):
         self.last_update = last_update or ""
 
         self.setMinimumWidth(400)
-        self.setMaximumWidth(900)
+        # self.setMaximumWidth(900)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred,
             QSizePolicy.Policy.Fixed
@@ -101,6 +120,7 @@ class JobApplicationCard(QWidget):
         self.status_badge.setObjectName("statusBadge")
         self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_badge.setContentsMargins(8, 2, 8, 2)
+        status_badge_color = STATUS_COLORS.get(self.status)
 
         top_row.addWidget(self.company_label)
         top_row.addStretch()
@@ -143,38 +163,38 @@ class JobApplicationCard(QWidget):
 
         # Simple stylesheet for card, badge, etc.
         self.setStyleSheet(
-            """
-            QFrame#cardFrame {
+            f"""
+            QFrame#cardFrame {{
                 border: 1px solid #cccccc;
                 border-radius: 6px;
-            }
+            }}
 
-            QLabel#companyLabel {
+            QLabel#companyLabel {{
                 font-weight: 600;
                 font-size: 14px;
-            }
+            }}
 
-            QLabel#positionLabel {
+            QLabel#positionLabel {{
                 font-size: 13px;
-            }
+            }}
 
-            QLabel#dateLabel, QLabel#locationLabel {
+            QLabel#dateLabel, QLabel#locationLabel {{
                 font-size: 11px;
                 color: #666666;
-            }
+            }}
 
-            QLabel#statusBadge {
+            QLabel#statusBadge {{
                 border-radius: 10px;
                 padding: 2px 8px;
                 font-size: 11px;
                 color: #ffffff;
-                background-color: #2b7a2b;
-            }
+                background-color: {status_badge_color};
+            }}
 
-            QPushButton#detailsButton {
+            QPushButton#detailsButton {{
                 font-size: 11px;
                 padding: 4px 10px;
-            }
+            }}
             """
         )
 
@@ -372,14 +392,7 @@ class AddApplicationOverlay(QWidget):
         self.position.setPlaceholderText("e.g., Software Engineer")
 
         self.status = QComboBox()
-        self.status.addItems([
-            "Applied",
-            "Interview Scheduled",
-            "Interviewed",
-            "Offer",
-            "Rejected",
-            "Withdrawn",
-        ])
+        self.status.addItems(STATUS_OPTIONS)
 
         self.company_website = QLineEdit()
         self.company_website.setPlaceholderText("https://...")
@@ -559,7 +572,7 @@ class ViewApplicationOverlay(QWidget):
         text_color = palette.color(QPalette.ColorRole.WindowText)
         base_bg = palette.color(QPalette.ColorRole.Base)
         button_bg = palette.color(QPalette.ColorRole.Button)
-        highlight = palette.color(QPalette.ColorRole.Highlight)
+        # highlight = palette.color(QPalette.ColorRole.Highlight)
 
         dialog_bg = window_bg.lighter(110)
         border_color = window_bg.lighter(140)
@@ -673,7 +686,8 @@ class ViewApplicationOverlay(QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
 
-        edit_btn = QPushButton("✎")  # or "Edit"
+        edit_btn = QPushButton("")  # or "Edit"
+        edit_btn.setIcon(EDIT_ICON)
         edit_btn.setObjectName("editBtn")
         edit_btn.setToolTip("Edit application")
         edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -968,14 +982,7 @@ class EditApplicationOverlay(QWidget):
         self.position = QLineEdit(self.job.get("position") or "")
 
         self.status = QComboBox()
-        self.status.addItems([
-            "Applied",
-            "Interview Scheduled",
-            "Interviewed",
-            "Offer",
-            "Rejected",
-            "Withdrawn",
-        ])
+        self.status.addItems(STATUS_OPTIONS)
         current_status = (self.job.get("status") or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)

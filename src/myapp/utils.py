@@ -3,6 +3,8 @@ import sys
 import re
 from pathlib import Path
 
+from PyQt6.QtGui import QIcon
+
 # TODO: Remove resource_path, first ensure it won't be needed anymore
 def resource_path(relative_path: str) -> str:
     if hasattr(sys, "_MEIPASS"):
@@ -52,3 +54,18 @@ def get_app_paths_for_user(app_name: str, user_id: str) -> dict[str, Path]:
     }
     paths["cache"].mkdir(parents=True, exist_ok=True)
     return paths
+
+# TODO: use this to create all icons
+# I can safely bundle icons from:
+# Tabler Icons (MIT)
+# Feather Icons (MIT)
+# Material Symbols (Outlined)
+
+def themed_icon_with_fallback(theme_name: str, fallback_path: str) -> QIcon:
+    icon = QIcon.fromTheme(theme_name)
+    if icon.isNull():
+        icon = QIcon(fallback_path)
+    return icon
+    
+def palette_color_to_rgba(c, a=100):
+    return f"rgba({c.red()}, {c.green()}, {c.blue()}, {a})"

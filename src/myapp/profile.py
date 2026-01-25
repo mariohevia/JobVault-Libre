@@ -4,10 +4,11 @@ from pathlib import Path
 import json
 
 from importlib import resources
+from typing import Callable
 
 import yaml
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette, QFont
+from PyQt6.QtGui import QPalette, QFont, QIcon
 from PyQt6.QtWidgets import (
     QWidget,
     QFrame,
@@ -16,8 +17,18 @@ from PyQt6.QtWidgets import (
     QLabel,
     QScrollArea,
     QSizePolicy,
+    QPushButton,
 )
 
+#TODO: Do a fail safe if the yml files are wrong.
+
+STATUS_COLORS = {
+    "Enabled": "#10B981",
+    "Disable": "#F59E0B",
+    "Never Use": "#EF4444",
+}
+
+EDIT_ICON = QIcon.fromTheme("document-edit")
 
 class SectionCard(QWidget):
     """
@@ -30,41 +41,42 @@ class SectionCard(QWidget):
         section_def: dict,
         user_section: dict | None,
         parent: QWidget | None = None,
+        on_edit: Callable = None
     ) -> None:
         super().__init__(parent)
 
         self.section_def = section_def
         self.user_section = user_section or {}
+        self.on_edit = on_edit
 
         self._init_ui()
 
     def _init_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(4)
+        # Main layout for this widget
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(12, 10, 12, 10)
+        root_layout.setSpacing(4)
 
-        # Frame to mimic a card-like look, similar to JobApplicationCard style
+        # Outer frame to give a card-like outline
         frame = QFrame(self)
         frame.setObjectName("sectionCardFrame")
         frame.setFrameShape(QFrame.Shape.StyledPanel)
         frame.setFrameShadow(QFrame.Shadow.Raised)
 
+        # Layout inside the frame
         frame_layout = QVBoxLayout(frame)
         frame_layout.setContentsMargins(10, 8, 10, 8)
         frame_layout.setSpacing(4)
 
         # --- Derive data from defs + user profile ---
-
-        section_type = self.section_def.get("type", "")
+        section_type = self.section_def.get("name", "")
         default_title = self.section_def.get("default_title", section_type.title())
 
         title_override = self.user_section.get("title_override")
         title = title_override or default_title
 
         # Enabled / never_use flags
-        enabled_by_default = bool(self.section_def.get("enabled_by_default", True))
-        enabled = self.user_section.get("enabled", enabled_by_default)
-        never_use = bool(self.user_section.get("never_use", False))
+        status = self.user_section.get("status", "Enabled")
 
         # Item count
         items = self.user_section.get("items", []) or []
@@ -79,13 +91,17 @@ class SectionCard(QWidget):
             count_text = f"{count} {plural_label}"
 
         # Status text
-        if never_use:
-            status_text = "Never use"
-        else:
-            status_text = "Enabled" if enabled else "Disabled"
+        match status:
+            case "Disabled":
+                status_text = "Disabled"
+            case "Never Use":
+                status_text = "Never Use"
+            case _:
+                status_text = "Enabled"
+
+        status_badge_color = STATUS_COLORS.get(status_text, "#6B7280")
 
         # --- Header row (title + status) ---
-
         header_row = QHBoxLayout()
         header_row.setSpacing(6)
 
@@ -105,25 +121,51 @@ class SectionCard(QWidget):
 
         frame_layout.addLayout(header_row)
 
-        # --- Secondary row (type + item count) ---
+        # --- Secondary row ---
 
         meta_row = QHBoxLayout()
         meta_row.setSpacing(6)
 
-        type_label = QLabel(f"Type: {section_type}", frame)
-        type_label.setObjectName("sectionTypeLabel")
-
         count_label = QLabel(count_text, frame)
-        count_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         count_label.setObjectName("sectionCountLabel")
 
-        meta_row.addWidget(type_label, stretch=1)
         meta_row.addWidget(count_label, stretch=0)
+
+        self.edit_button = QPushButton(" Edit")
+        self.edit_button.setIcon(EDIT_ICON)
+        self.edit_button.setObjectName("sectionEditButton")
+        self.edit_button.clicked.connect(self._handle_edit_clicked) 
+        meta_row.addStretch()
+        meta_row.addWidget(self.edit_button)
 
         frame_layout.addLayout(meta_row)
 
-        layout.addWidget(frame)
+        root_layout.addWidget(frame)
 
+        self.setStyleSheet(
+            f"""
+            QFrame#sectionCardFrame {{
+                border: 1px solid #cccccc;
+                border-radius: 6px;
+            }}
+            
+            QLabel#sectionStatusLabel {{
+                border-radius: 10px;
+                padding: 2px 8px;
+                font-size: 11px;
+                color: #ffffff;
+                background-color: {status_badge_color};
+            }}
+            """
+        )
+
+    def _handle_edit_clicked(self):
+        if callable(self.on_edit):
+            # pass a job dict (same shape you already use elsewhere)
+            self.on_edit({
+                "section_def": self.section_def,
+                "user_section": self.user_section,
+            })
 
 class ProfilePage(QWidget):
     def __init__(
@@ -213,11 +255,11 @@ class ProfilePage(QWidget):
                 w.deleteLater()
 
         # Build cards from YAML definitions
-        user_sections_by_type = self._index_user_sections_by_type(self.user_profile)
+        user_sections_by_name = self._index_user_sections_by_name(self.user_profile)
 
         for section_def in self.section_defs:
-            section_type = section_def.get("type")
-            user_section = user_sections_by_type.get(section_type)
+            section_name = section_def.get("name")
+            user_section = user_sections_by_name.get(section_name)
 
             card = SectionCard(section_def, user_section, parent=self.section_list_container)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -227,13 +269,13 @@ class ProfilePage(QWidget):
         self.section_list_layout.addStretch(1)
 
     @staticmethod
-    def _index_user_sections_by_type(user_profile: dict) -> dict[str, dict]:
+    def _index_user_sections_by_name(user_profile: dict) -> dict[str, dict]:
         result: dict[str, dict] = {}
         sections = user_profile.get("sections", []) or []
         for sec in sections:
-            sec_type = sec.get("type")
-            if sec_type:
-                result[sec_type] = sec
+            sec_name = sec.get("name")
+            if sec_name:
+                result[sec_name] = sec
         return result
 
     @staticmethod

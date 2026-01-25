@@ -1,5 +1,4 @@
-import sys
-from pathlib import Path
+
 from importlib import resources
 
 from PyQt6.QtWidgets import (
@@ -11,20 +10,11 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QFrame,
-    QSizePolicy,
-    QSpacerItem,
-    QScrollArea,
-    QLineEdit,
-    QCompleter,
-    QTextEdit,
-    QComboBox,
-    QFormLayout,
-    QMessageBox,
     QStackedWidget,
 )
 
-from PyQt6.QtCore import Qt, QStringListModel, QEvent
-from PyQt6.QtGui import QIcon, QPalette, QPixmap, QIcon
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon, QPixmap
 
 from myapp.database import JobDatabase
 from myapp.tracker import TrackerPage
@@ -66,7 +56,7 @@ class MainWindow(QMainWindow):
 
         nav_layout = QVBoxLayout(nav)
         nav_layout.setContentsMargins(8, 8, 8, 8)
-        nav_layout.setSpacing(8)
+        nav_layout.setSpacing(0)
 
         logo_label = QLabel()
         with resources.as_file(resources.files("myapp.assets").joinpath("JV_logo.png")) as path:
@@ -86,11 +76,8 @@ class MainWindow(QMainWindow):
             'Libre</span>'
         )
 
-        self.btn_applications = QPushButton("Applications")
-        self.btn_applications.setCheckable(True)
-
-        self.btn_profile = QPushButton("Profile")
-        self.btn_profile.setCheckable(True)
+        self.btn_applications = self._make_nav_button("Applications")
+        self.btn_profile = self._make_nav_button("Profile")
 
         # horizontal layout just for logo + title
         nav_header_layout = QHBoxLayout()
@@ -130,6 +117,66 @@ class MainWindow(QMainWindow):
         # Start on applications page
         self._switch_page(self.applications_page, self.btn_applications)
 
+        # TODO: Ensure that the colours used here fit for every theme or use a
+        # theme based colour for everything
+        self.setStyleSheet("""
+            /* Nav buttons only */
+            QPushButton[nav="true"] {
+                background: transparent;
+                border: none;
+                padding: 8px 10px 8px 12px;   /* space for indicator */
+                text-align: left;
+                font-size: 10.5pt;
+                font-weight: 500;
+                color: palette(windowText);
+            }
+
+            /* Subtle hover: use Highlight with transparency (not a solid fill colour) */
+            QPushButton[nav="true"]:hover {
+                background: rgba(127, 127, 127, 23);
+            }
+
+            /* Pressed: slightly stronger */
+            QPushButton[nav="true"]:pressed {
+                background: rgba(127, 127, 127, 28);
+            }
+
+            /* Disabled */
+            QPushButton[nav="true"]:disabled {
+                color: rgba(127, 127, 127, 140);
+                background: transparent;
+            }
+
+            /* Left indicator bar (implemented via padding + linear-gradient) */
+            QPushButton[nav="true"]:checked {
+                font-weight: 600;
+                background:
+                    qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                    stop:0 palette(highlight),
+                                    stop:0.03 palette(highlight),
+                                    stop:0.031 rgba(0,0,0,0),
+                                    stop:1 rgba(127, 127, 127, 18));
+            }
+
+            /* Keep hover/press visible even when checked (optional refinement) */
+            QPushButton[nav="true"]:checked:hover {
+                background:
+                    qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                    stop:0 palette(highlight),
+                                    stop:0.04 palette(highlight),
+                                    stop:0.041 rgba(0,0,0,0),
+                                    stop:1 rgba(127,127,127,23));
+            }
+            QPushButton[nav="true"]:checked:pressed {
+                background:
+                    qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                    stop:0 palette(highlight),
+                                    stop:0.04 palette(highlight),
+                                    stop:0.041 rgba(0,0,0,0),
+                                    stop:1 rgba(127,127,127,28));
+            }
+            """)
+
     def _switch_page(self, page: QWidget, clicked_button: QPushButton):
         # Make sure only one nav button looks "active"
         for btn in (self.btn_applications, self.btn_profile):
@@ -142,6 +189,15 @@ class MainWindow(QMainWindow):
             self.db.close()
         finally:
             super().closeEvent(event)
+
+    @staticmethod
+    def _make_nav_button(text: str) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setCheckable(True)
+        btn.setProperty("nav", True)          # <-- used by QSS selector
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        return btn
 
 def main():
     app = QApplication([])
