@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import os
 
 from importlib import resources
-from typing import Callable
+from datetime import date
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import yaml
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette, QFont, QIcon
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtGui import QPalette, QFont, QIcon, QIntValidator
 from PyQt6.QtWidgets import (
     QWidget,
     QFrame,
@@ -18,6 +20,13 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QPushButton,
+    QFormLayout,
+    QLineEdit,
+    QTextEdit,
+    QComboBox,
+    QGroupBox,
+    QCheckBox,
+    QMessageBox,
 )
 
 #TODO: Do a fail safe if the yml files are wrong.
@@ -29,6 +38,902 @@ STATUS_COLORS = {
 }
 
 EDIT_ICON = QIcon.fromTheme("document-edit")
+
+
+SectionDef = Dict[str, Any]
+SectionCfg = Dict[str, Any]
+
+
+def _ensure_dir_for_file(path: str) -> None:
+    folder = os.path.dirname(os.path.abspath(path))
+    if folder and not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+
+
+def _load_full_config(config_path: str) -> Dict[str, Any]:
+    if not config_path:
+        return {"sections": {}}
+
+    if not os.path.exists(config_path):
+        _ensure_dir_for_file(config_path)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump({"sections": {}}, f, indent=2, ensure_ascii=False)
+        return {"sections": {}}
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {"sections": {}}
+        if "sections" not in data or not isinstance(data.get("sections"), dict):
+            data["sections"] = {}
+        return data
+    except Exception:
+        return {"sections": {}}
+
+
+def _save_full_config(config_path: str, full_cfg: Dict[str, Any]) -> None:
+    _ensure_dir_for_file(config_path)
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(full_cfg, f, indent=2, ensure_ascii=False)
+
+
+def _today_year_month() -> Tuple[int, int]:
+    d = date.today()
+    return d.year, d.month
+
+
+def _normalise_section_state(v: Any) -> str:
+    v = (v or "").strip()
+    return v if v in ("enabled", "disabled", "never_use") else "enabled"
+
+
+def _field_default_value(field_def: Dict[str, Any]) -> Any:
+    ftype = field_def.get("type")
+
+    # default_value from YAML if present and non-empty
+    if "default_value" in field_def:
+        dv = field_def.get("default_value")
+        if dv is not None and str(dv).strip() != "":
+            return dv
+
+    if ftype == "year_month":
+        y, m = _today_year_month()
+        return {"year": y, "month": m}
+
+    if ftype == "enum":
+        opts = field_def.get("options") or []
+        return opts[0] if isinstance(opts, list) and opts else ""
+
+    if ftype in ("string", "multiline"):
+        return ""
+
+    if ftype == "number":
+        return 0
+
+    if ftype == "object":
+        # build dict for nested fields
+        out = {}
+        for sub in (field_def.get("fields") or []):
+            if isinstance(sub, dict) and sub.get("name"):
+                out[sub["name"]] = _field_default_value(sub)
+        return out
+
+    return ""
+
+
+def _wrap_value(value: Any, selected_default: bool) -> Dict[str, Any]:
+    return {"value": value, "selected_default": bool(selected_default)}
+
+
+def _unwrap_wrapped(obj: Any) -> Tuple[Any, bool]:
+    """
+    Accepts either:
+      - {"value": X, "selected_default": bool}
+      - raw X
+    Returns (value, selected_default)
+    """
+    if isinstance(obj, dict) and "value" in obj:
+        return obj.get("value"), bool(obj.get("selected_default", False))
+    return obj, False
+
+
+class SectionSettingsOverlay(QWidget):
+    """
+    Dynamic overlay to edit one section config (state + items + per-field selected_default).
+
+    Persist behaviour:
+      - Reads full config from config_path.
+      - Overwrites only full_cfg["sections"][section_name] with the edited section payload.
+      - Writes the full file back.
+    """
+
+    def __init__(
+        self,
+        parent: QWidget,
+        palette: QPalette,
+        section_def: SectionDef,
+        section_cfg: SectionCfg,
+        config_path: str,
+        on_saved: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    ):
+        super().__init__(parent)
+
+        self.section_def = dict(section_def or {})
+        self.section_cfg = dict(section_cfg or {})
+        self.config_path = config_path
+        self.on_saved = on_saved
+
+        self.section_name = (self.section_def.get("name") or "").strip()
+        self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
+
+        self._item_widgets: List["_ItemEditor"] = []
+
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("overlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        window_bg = palette.color(QPalette.ColorRole.Window)
+        text_color = palette.color(QPalette.ColorRole.WindowText)
+        base_bg = palette.color(QPalette.ColorRole.Base)
+        button_bg = palette.color(QPalette.ColorRole.Button)
+        highlight = palette.color(QPalette.ColorRole.Highlight)
+
+        dialog_bg = window_bg.lighter(110)
+        border_color = window_bg.lighter(140)
+        hover_bg = button_bg.lighter(120)
+
+        self.setStyleSheet(
+            """
+            QWidget#overlay { background-color: rgba(0, 0, 0, 180); }
+            QFrame#dialogFrame {
+                border-radius: 12px;
+                border: 1px solid %(border)s;
+                background-color: %(dialog)s;
+            }
+            QLabel { color: %(text)s; }
+            QLineEdit, QTextEdit {
+                background-color: %(base)s;
+                color: %(text)s;
+                border: 1px solid %(border)s;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QLineEdit:focus, QTextEdit:focus { border: 1px solid %(hl)s; }
+            QComboBox {
+                background-color: %(base)s;
+                color: %(text)s;
+                border: 1px solid %(border)s;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QComboBox::drop-down { border: none; }
+            QComboBox QAbstractItemView {
+                background-color: %(base)s;
+                color: %(text)s;
+                selection-background-color: %(hl)s;
+            }
+            QPushButton {
+                background-color: %(btn)s;
+                color: %(text)s;
+                border: 1px solid %(border)s;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            QPushButton:hover { background-color: %(hover)s; }
+            QPushButton#saveBtn {
+                background-color: %(hl)s;
+                border: 1px solid %(hl)s;
+            }
+            QPushButton#saveBtn:hover { background-color: %(hl2)s; }
+            QPushButton#closeBtn {
+                background-color: transparent;
+                border: none;
+                font-size: 18px;
+                padding: 4px 8px;
+            }
+            QPushButton#closeBtn:hover {
+                background-color: rgba(128, 128, 128, 50);
+                border-radius: 6px;
+            }
+            QScrollArea { border: none; background-color: transparent; }
+            QGroupBox {
+                border: 1px solid %(border)s;
+                border-radius: 8px;
+                margin-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 6px;
+            }
+            """
+            % {
+                "dialog": dialog_bg.name(),
+                "border": border_color.name(),
+                "text": text_color.name(),
+                "base": base_bg.name(),
+                "btn": button_bg.name(),
+                "hover": hover_bg.name(),
+                "hl": highlight.name(),
+                "hl2": highlight.darker(110).name(),
+            }
+        )
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(60, 40, 60, 80)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.dialog = QFrame(self)
+        self.dialog.setObjectName("dialogFrame")
+        self.dialog.setMinimumSize(300, 520)
+
+        dialog_layout = QVBoxLayout(self.dialog)
+        dialog_layout.setContentsMargins(24, 20, 24, 24)
+        dialog_layout.setSpacing(16)
+
+        # Title row
+        title_row = QHBoxLayout()
+        title = QLabel(self.section_def.get("default_title") or self.section_name or "Section Settings")
+        title.setStyleSheet("font-weight: 600; font-size: 18px;")
+        title_row.addWidget(title)
+        title_row.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setObjectName("closeBtn")
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.close)
+        close_btn.setFixedSize(32, 32)
+        title_row.addWidget(close_btn)
+        dialog_layout.addLayout(title_row)
+
+        # Optional description
+        desc = (self.section_def.get("description") or "").strip()
+        if desc:
+            desc_lbl = QLabel(desc)
+            desc_lbl.setWordWrap(True)
+            desc_lbl.setStyleSheet("opacity: 0.9;")
+            dialog_layout.addWidget(desc_lbl)
+
+        # Scroll body
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        scroll_content = QWidget()
+        self.scroll_layout = QVBoxLayout(scroll_content)
+        self.scroll_layout.setContentsMargins(0, 0, 8, 0)
+        self.scroll_layout.setSpacing(14)
+
+        # Section state selector
+        self.scroll_layout.addWidget(self._build_section_state_block())
+
+        # Items block
+        self.items_container = QVBoxLayout()
+        self.items_container.setSpacing(12)
+        self.scroll_layout.addLayout(self.items_container)
+
+        # Add item button (only if allow_multiple)
+        if self.allow_multiple:
+            add_item_row = QHBoxLayout()
+            add_item_row.addStretch()
+            self.add_item_btn = QPushButton("Add %s" % (self._item_label_singular() or "item"))
+            self.add_item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.add_item_btn.clicked.connect(self._add_item_clicked)
+            add_item_row.addWidget(self.add_item_btn)
+            self.scroll_layout.addLayout(add_item_row)
+
+        self.scroll_layout.addStretch(1)
+
+        scroll_area.setWidget(scroll_content)
+        dialog_layout.addWidget(scroll_area, 1)
+
+        # Actions
+        actions = QHBoxLayout()
+        actions.addStretch()
+
+        cancel = QPushButton("Cancel")
+        cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel.clicked.connect(self.close)
+        cancel.setFixedHeight(36)
+
+        save = QPushButton("Save")
+        save.setObjectName("saveBtn")
+        save.setCursor(Qt.CursorShape.PointingHandCursor)
+        save.clicked.connect(self._save_clicked)
+        save.setFixedHeight(36)
+
+        actions.addWidget(cancel)
+        actions.addSpacing(8)
+        actions.addWidget(save)
+        dialog_layout.addLayout(actions)
+
+        outer.addWidget(self.dialog)
+
+        self.installEventFilter(self)
+
+        # Build initial items from section_cfg
+        self._load_initial_items()
+
+    # ---------- UI building ----------
+
+    def _build_section_state_block(self) -> QGroupBox:
+        gb = QGroupBox("Section state")
+        lay = QVBoxLayout(gb)
+        lay.setContentsMargins(12, 10, 12, 12)
+        lay.setSpacing(10)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Behaviour"))
+        row.addStretch()
+
+        self.state_combo = QComboBox()
+        self.state_combo.addItems(["enabled", "disabled", "never_use"])
+        current = _normalise_section_state(self.section_cfg.get("state"))
+        idx = self.state_combo.findText(current)
+        self.state_combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+        row.addWidget(self.state_combo)
+        lay.addLayout(row)
+
+        hint = QLabel("Note: this value is stored only; it does not change behaviour in the UI yet.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("opacity: 0.85; font-size: 12px;")
+        lay.addWidget(hint)
+
+        return gb
+
+    def _item_label_singular(self) -> str:
+        item_label = self.section_def.get("item_label") or {}
+        return (item_label.get("singular") or "").strip()
+
+    def _item_label_plural(self) -> str:
+        item_label = self.section_def.get("item_label") or {}
+        return (item_label.get("plural") or "").strip()
+
+    def _fields_def(self) -> List[Dict[str, Any]]:
+        fields = self.section_def.get("fields") or []
+        return [f for f in fields if isinstance(f, dict) and f.get("name")]
+
+    # ---------- Load initial data ----------
+
+    def _load_initial_items(self) -> None:
+        items = self.section_cfg.get("items")
+        if not isinstance(items, list):
+            items = []
+
+        if not items:
+            # ensure at least one item exists even if allow_multiple is false
+            base_item = self._make_default_item_payload()
+            items = [base_item]
+
+        # If allow_multiple is false, keep only first
+        if not self.allow_multiple and items:
+            items = [items[0]]
+
+        for payload in items:
+            self._add_item_editor(payload)
+
+    def _make_default_item_payload(self) -> Dict[str, Any]:
+        """
+        Returns an item payload shaped as:
+          { field_name: {"value": ..., "selected_default": false} } OR
+          { field_name: [ {"value": ..., "selected_default": false}, ... ] } for multiple fields.
+        """
+        out: Dict[str, Any] = {}
+        for fdef in self._fields_def():
+            fname = fdef["name"]
+            is_multi = bool(fdef.get("multiple", False))
+            base = _field_default_value(fdef)
+
+            if is_multi:
+                out[fname] = [_wrap_value(base, False)]
+            else:
+                out[fname] = _wrap_value(base, False)
+        return out
+
+    # ---------- Item editors ----------
+
+    def _add_item_clicked(self) -> None:
+        payload = self._make_default_item_payload()
+        self._add_item_editor(payload)
+
+    def _add_item_editor(self, payload: Dict[str, Any]) -> None:
+        editor = _ItemEditor(
+            section_fields=self._fields_def(),
+            payload=dict(payload or {}),
+            palette=self.palette(),
+            allow_remove=self.allow_multiple,
+            on_remove=lambda ed=None: self._remove_item_editor(editor),
+        )
+        self._item_widgets.append(editor)
+        self.items_container.addWidget(editor)
+
+        self._renumber_item_titles()
+
+    def _remove_item_editor(self, editor: "_ItemEditor") -> None:
+        if editor in self._item_widgets:
+            self._item_widgets.remove(editor)
+        editor.setParent(None)
+        editor.deleteLater()
+        self._renumber_item_titles()
+
+    def _renumber_item_titles(self) -> None:
+        label = self._item_label_singular() or "Item"
+        for i, ed in enumerate(self._item_widgets, start=1):
+            ed.set_title("%s %d" % (label, i))
+
+    # ---------- Save / Close behaviour ----------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fit_to_parent()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def _fit_to_parent(self):
+        p = self.parentWidget()
+        if p is not None:
+            self.setGeometry(p.rect())
+
+    def eventFilter(self, obj, event):
+        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
+            if not self.dialog.geometry().contains(event.position().toPoint()):
+                self.close()  # close without saving
+                return True
+        return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
+
+    def _save_clicked(self) -> None:
+        if not self.section_name:
+            QMessageBox.warning(self, "Missing section name", "This section has no 'name' in the YAML.")
+            return
+
+        # collect section payload
+        section_payload: Dict[str, Any] = {
+            "state": self.state_combo.currentText(),
+            "items": [ed.to_payload() for ed in self._item_widgets],
+        }
+
+        # If allow_multiple is false, keep only one item
+        if not self.allow_multiple and section_payload["items"]:
+            section_payload["items"] = [section_payload["items"][0]]
+
+        # write full config with only this section replaced
+        full_cfg = _load_full_config(self.config_path)
+        full_cfg.setdefault("sections", {})
+        if not isinstance(full_cfg["sections"], dict):
+            full_cfg["sections"] = {}
+        full_cfg["sections"][self.section_name] = section_payload
+        _save_full_config(self.config_path, full_cfg)
+
+        if self.on_saved:
+            self.on_saved(self.section_name, section_payload)
+
+        self.close()
+    
+    def closeEvent(self, event):
+        """Clean up when overlay is closed."""
+        super().closeEvent(event)
+        # Notify parent to clear reference
+        parent = self.parentWidget()
+        if parent and hasattr(parent, '_overlay') and parent._overlay is self:
+            parent._overlay = None
+
+
+class _ItemEditor(QFrame):
+    def __init__(
+        self,
+        section_fields: List[Dict[str, Any]],
+        payload: Dict[str, Any],
+        palette: QPalette,
+        allow_remove: bool,
+        on_remove: Callable[[], None],
+    ):
+        super().__init__()
+
+        self.section_fields = section_fields
+        self.payload = payload
+        self.allow_remove = allow_remove
+        self.on_remove = on_remove
+
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setObjectName("itemEditorFrame")
+
+        self._field_editors: Dict[str, Union["_SingleFieldEditor", "_MultiFieldEditor"]] = {}
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(10)
+
+        # header
+        header = QHBoxLayout()
+        self.title_lbl = QLabel("Item")
+        self.title_lbl.setStyleSheet("font-weight: 600; font-size: 14px;")
+        header.addWidget(self.title_lbl)
+        header.addStretch()
+
+        if allow_remove:
+            rm = QPushButton("Remove")
+            rm.setCursor(Qt.CursorShape.PointingHandCursor)
+            rm.clicked.connect(self.on_remove)
+            rm.setFixedHeight(30)
+            header.addWidget(rm)
+
+        outer.addLayout(header)
+
+        # body
+        body = QGroupBox()
+        body.setTitle("")
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(12, 10, 12, 12)
+        body_layout.setSpacing(12)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(10)
+
+        for fdef in self.section_fields:
+            fname = fdef["name"]
+            flabel = fdef.get("label") or fname
+            is_multi = bool(fdef.get("multiple", False))
+
+            initial = self.payload.get(fname)
+            if is_multi:
+                if not isinstance(initial, list):
+                    # if stored as single, adapt
+                    v, s = _unwrap_wrapped(initial)
+                    initial = [_wrap_value(v, s)]
+                editor = _MultiFieldEditor(fdef=fdef, initial_list=initial)
+            else:
+                v, s = _unwrap_wrapped(initial)
+                if initial is None:
+                    v = _field_default_value(fdef)
+                    s = False
+                editor = _SingleFieldEditor(fdef=fdef, initial_value=v, initial_selected=s)
+
+            self._field_editors[fname] = editor
+            form.addRow(flabel, editor)
+
+        body_layout.addLayout(form)
+        outer.addWidget(body)
+
+    def set_title(self, title: str) -> None:
+        self.title_lbl.setText(title or "Item")
+
+    def to_payload(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for fname, editor in self._field_editors.items():
+            out[fname] = editor.to_payload()
+        return out
+
+
+class _SingleFieldEditor(QWidget):
+    """
+    Renders one field editor + 'Selected by Default' checkbox.
+    """
+
+    def __init__(self, fdef: Dict[str, Any], initial_value: Any, initial_selected: bool):
+        super().__init__()
+        self.fdef = fdef
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self.editor = _build_value_widget(fdef, initial_value)
+        layout.addWidget(self.editor)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addStretch()
+
+        self.selected_cb = QCheckBox("Selected by Default")
+        self.selected_cb.setChecked(bool(initial_selected))
+        row.addWidget(self.selected_cb)
+
+        layout.addLayout(row)
+
+    def to_payload(self) -> Dict[str, Any]:
+        return _wrap_value(_read_value_widget(self.fdef, self.editor), self.selected_cb.isChecked())
+
+
+class _MultiFieldEditor(QWidget):
+    """
+    Renders a vertical list of value widgets. Each entry has:
+      - value editor
+      - 'Selected by Default' checkbox
+      - optional remove button
+    and an 'Add another' button at the end.
+    """
+
+    def __init__(self, fdef: Dict[str, Any], initial_list: List[Any]):
+        super().__init__()
+        self.fdef = fdef
+        self.rows: List[Tuple[QWidget, QCheckBox, Optional[QPushButton]]] = []
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        self.rows_container = QVBoxLayout()
+        self.rows_container.setContentsMargins(0, 0, 0, 0)
+        self.rows_container.setSpacing(8)
+        outer.addLayout(self.rows_container)
+
+        for entry in (initial_list or []):
+            v, s = _unwrap_wrapped(entry)
+            if entry is None:
+                v = _field_default_value(fdef)
+                s = False
+            self._add_row(value=v, selected=bool(s))
+
+        # ensure at least one
+        if not self.rows:
+            self._add_row(value=_field_default_value(fdef), selected=False)
+
+        add_row = QHBoxLayout()
+        add_row.addStretch()
+        add_btn = QPushButton("Add another")
+        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_btn.clicked.connect(lambda: self._add_row(value=_field_default_value(self.fdef), selected=False))
+        add_btn.setFixedHeight(30)
+        add_row.addWidget(add_btn)
+        outer.addLayout(add_row)
+
+    def _add_row(self, value: Any, selected: bool) -> None:
+        row_wrap = QWidget()
+        row_l = QVBoxLayout(row_wrap)
+        row_l.setContentsMargins(0, 0, 0, 0)
+        row_l.setSpacing(6)
+
+        editor = _build_value_widget(self.fdef, value)
+        row_l.addWidget(editor)
+
+        controls = QHBoxLayout()
+        controls.addStretch()
+
+        selected_cb = QCheckBox("Selected by Default")
+        selected_cb.setChecked(bool(selected))
+        controls.addWidget(selected_cb)
+
+        remove_btn: Optional[QPushButton] = None
+        if True:
+            remove_btn = QPushButton("Remove")
+            remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            remove_btn.setFixedHeight(28)
+            controls.addWidget(remove_btn)
+
+        row_l.addLayout(controls)
+
+        self.rows_container.addWidget(row_wrap)
+        self.rows.append((editor, selected_cb, remove_btn))
+
+        if remove_btn is not None:
+            remove_btn.clicked.connect(lambda: self._remove_row(row_wrap))
+
+        self._update_remove_enabled()
+
+    def _remove_row(self, row_widget: QWidget) -> None:
+        if len(self.rows) <= 1:
+            return
+        # find index
+        idx = None
+        for i, (ed, cb, rb) in enumerate(self.rows):
+            if row_widget is ed.parentWidget() or row_widget is cb.parentWidget() or row_widget is rb.parentWidget() if rb else False:
+                idx = i
+                break
+        # fallback: remove by widget match
+        if idx is None:
+            for i, (ed, cb, rb) in enumerate(self.rows):
+                if row_widget is ed.parentWidget():
+                    idx = i
+                    break
+
+        # robust: remove by layout widget reference
+        if idx is None:
+            # remove last
+            idx = len(self.rows) - 1
+
+        # remove visual row
+        row_widget.setParent(None)
+        row_widget.deleteLater()
+
+        # remove stored row (best-effort)
+        if 0 <= idx < len(self.rows):
+            self.rows.pop(idx)
+
+        self._update_remove_enabled()
+
+    def _update_remove_enabled(self) -> None:
+        can_remove = len(self.rows) > 1
+        for _, _, rb in self.rows:
+            if rb is not None:
+                rb.setEnabled(can_remove)
+
+    def to_payload(self) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for editor, selected_cb, _ in self.rows:
+            out.append(_wrap_value(_read_value_widget(self.fdef, editor), selected_cb.isChecked()))
+        return out
+
+
+def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
+    ftype = fdef.get("type")
+
+    if ftype == "string":
+        w = QLineEdit()
+        w.setText("" if value is None else str(value))
+        ph = (fdef.get("placeholder") or "").strip()
+        if ph:
+            w.setPlaceholderText(ph)
+        return w
+
+    if ftype == "multiline":
+        w = QTextEdit()
+        w.setPlainText("" if value is None else str(value))
+        w.setFixedHeight(110)
+        ph = (fdef.get("placeholder") or "").strip()
+        if ph:
+            w.setPlaceholderText(ph)
+        return w
+
+    if ftype == "enum":
+        w = QComboBox()
+        opts = fdef.get("options") or []
+        if isinstance(opts, list):
+            w.addItems([str(o) for o in opts])
+        current = "" if value is None else str(value)
+        idx = w.findText(current)
+        w.setCurrentIndex(idx if idx >= 0 else 0)
+        return w
+
+    if ftype == "year_month":
+        # store as dict {"year": int, "month": int}
+        y = None
+        m = None
+        if isinstance(value, dict):
+            y = value.get("year")
+            m = value.get("month")
+
+        if not isinstance(y, int) or not isinstance(m, int):
+            ty, tm = _today_year_month()
+            y, m = ty, tm
+
+        wrap = QWidget()
+        lay = QHBoxLayout(wrap)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+
+        year = QComboBox()
+        # sensible range
+        this_year = date.today().year
+        years = list(range(this_year - 60, this_year + 6))
+        year.addItems([str(v) for v in years])
+        y_idx = year.findText(str(y))
+        year.setCurrentIndex(y_idx if y_idx >= 0 else (year.count() - 1))
+
+        month = QComboBox()
+        month.addItems([str(v).zfill(2) for v in range(1, 13)])
+        m_idx = month.findText(str(m).zfill(2))
+        month.setCurrentIndex(m_idx if m_idx >= 0 else 0)
+
+        wrap._year_combo = year  # type: ignore[attr-defined]
+        wrap._month_combo = month  # type: ignore[attr-defined]
+
+        lay.addWidget(year, 1)
+        lay.addWidget(month, 1)
+        return wrap
+
+    if ftype == "number":
+        w = QLineEdit()
+        w.setValidator(QIntValidator())
+        if value is None:
+            value = 0
+        try:
+            w.setText(str(int(value)))
+        except Exception:
+            w.setText("0")
+        return w
+
+    if ftype == "object":
+        gb = QGroupBox(fdef.get("label") or "Details")
+        vlay = QVBoxLayout(gb)
+        vlay.setContentsMargins(12, 10, 12, 12)
+        vlay.setSpacing(10)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(10)
+
+        fields = fdef.get("fields") or []
+        if not isinstance(value, dict):
+            value = _field_default_value(fdef)
+
+        gb._sub_editors = {}  # type: ignore[attr-defined]
+
+        for sub in fields:
+            if not isinstance(sub, dict) or not sub.get("name"):
+                continue
+            sub_name = sub["name"]
+            sub_label = sub.get("label") or sub_name
+            sub_val = value.get(sub_name)
+            editor = _build_value_widget(sub, sub_val)
+            gb._sub_editors[sub_name] = (sub, editor)  # type: ignore[attr-defined]
+            form.addRow(sub_label, editor)
+
+        vlay.addLayout(form)
+        return gb
+
+    # fallback
+    w = QLineEdit()
+    w.setText("" if value is None else str(value))
+    return w
+
+
+def _read_value_widget(fdef: Dict[str, Any], widget: QWidget) -> Any:
+    ftype = fdef.get("type")
+
+    if ftype == "string":
+        assert isinstance(widget, QLineEdit)
+        return widget.text()
+
+    if ftype == "multiline":
+        assert isinstance(widget, QTextEdit)
+        return widget.toPlainText()
+
+    if ftype == "enum":
+        assert isinstance(widget, QComboBox)
+        return widget.currentText()
+
+    if ftype == "year_month":
+        year = widget._year_combo  # type: ignore[attr-defined]
+        month = widget._month_combo  # type: ignore[attr-defined]
+        try:
+            y = int(year.currentText())
+        except Exception:
+            y = date.today().year
+        try:
+            m = int(month.currentText())
+        except Exception:
+            m = date.today().month
+        return {"year": y, "month": m}
+
+    if ftype == "number":
+        assert isinstance(widget, QLineEdit)
+        txt = (widget.text() or "").strip()
+        if txt == "":
+            return 0
+        try:
+            return int(txt)
+        except Exception:
+            return 0
+
+    if ftype == "object":
+        sub_map = widget._sub_editors  # type: ignore[attr-defined]
+        out: Dict[str, Any] = {}
+        for name, (sub_def, sub_w) in sub_map.items():
+            out[name] = _read_value_widget(sub_def, sub_w)
+        return out
+
+    # fallback
+    if isinstance(widget, QLineEdit):
+        return widget.text()
+    if isinstance(widget, QTextEdit):
+        return widget.toPlainText()
+    return None
 
 class SectionCard(QWidget):
     """
@@ -162,10 +1067,7 @@ class SectionCard(QWidget):
     def _handle_edit_clicked(self):
         if callable(self.on_edit):
             # pass a job dict (same shape you already use elsewhere)
-            self.on_edit({
-                "section_def": self.section_def,
-                "user_section": self.user_section,
-            })
+            self.on_edit(self.section_def, self.user_section)
 
 class ProfilePage(QWidget):
     def __init__(
@@ -187,6 +1089,7 @@ class ProfilePage(QWidget):
 
         self._init_ui()
         self._load_data_and_build_section_list()
+        self._overlay = None
 
     def _init_ui(self) -> None:
         # Outer frame to give a card-like outline
@@ -239,6 +1142,31 @@ class ProfilePage(QWidget):
         # Spacer at the bottom
         self.layout.addStretch(1)
 
+    def open_section_settings_overlay(self, section_def: dict, section_cfg_for_section: dict):
+        if self._overlay is not None:
+            self._overlay.deleteLater()
+            self._overlay = None
+
+        
+        section_name = section_def.get("name")
+        full_cfg = _load_full_config(str(self.paths.get("config")))
+        saved_section_cfg = full_cfg.get("sections", {}).get(section_name, {})
+
+        self._overlay = SectionSettingsOverlay(
+            parent=self,
+            palette=self.palette,
+            section_def=section_def,
+            section_cfg=saved_section_cfg,  # Use the actual saved config, not user_section
+            config_path=str(self.paths.get("config")),
+            on_saved=self._on_section_saved,  # Add callback to refresh UI
+        )
+
+        self._overlay.show()
+        self._overlay.raise_()
+
+    def _on_section_saved(self, section_name: str, payload: dict):
+        """Callback when a section is saved - refresh the UI."""
+        self._load_data_and_build_section_list()
     # ----------------------
     # Data loading
     # ----------------------
@@ -261,7 +1189,7 @@ class ProfilePage(QWidget):
             section_name = section_def.get("name")
             user_section = user_sections_by_name.get(section_name)
 
-            card = SectionCard(section_def, user_section, parent=self.section_list_container)
+            card = SectionCard(section_def, user_section, parent=self.section_list_container, on_edit=self.open_section_settings_overlay)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
             self.section_list_layout.addWidget(card)
@@ -271,11 +1199,19 @@ class ProfilePage(QWidget):
     @staticmethod
     def _index_user_sections_by_name(user_profile: dict) -> dict[str, dict]:
         result: dict[str, dict] = {}
-        sections = user_profile.get("sections", []) or []
-        for sec in sections:
-            sec_name = sec.get("name")
-            if sec_name:
-                result[sec_name] = sec
+        sections = user_profile.get("sections", {})  # Changed from [] to {}
+        
+        # Handle both dict and list formats for backwards compatibility
+        if isinstance(sections, dict):
+            # New format: sections is already a dict keyed by name
+            result = sections
+        elif isinstance(sections, list):
+            # Old format: sections is a list with 'name' fields
+            for sec in sections:
+                sec_name = sec.get("name")
+                if sec_name:
+                    result[sec_name] = sec
+        
         return result
 
     @staticmethod
@@ -319,3 +1255,11 @@ class ProfilePage(QWidget):
         if not isinstance(sections, list):
             return []
         return sections
+
+    def resizeEvent(self, event):
+        """Handle window resize - update overlay if it's open."""
+        super().resizeEvent(event)
+        
+        # Update overlay geometry when window is resized
+        if self._overlay is not None and self._overlay.isVisible():
+            self._overlay.setGeometry(self.rect())

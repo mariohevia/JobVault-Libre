@@ -124,6 +124,8 @@ sections:
       - name: skill
         label: "Skill"
         type: object
+        multiple: true
+        select_multiple: true
         fields:
           - name: name
             label: "Name"
