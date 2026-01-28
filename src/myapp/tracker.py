@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QFrame,
     QSizePolicy,
     QSpacerItem,
@@ -14,11 +15,10 @@ from PyQt6.QtWidgets import (
     QCompleter,
     QTextEdit,
     QComboBox,
-    QFormLayout,
     QMessageBox,
 )
 
-from PyQt6.QtCore import Qt, QStringListModel, QEvent
+from PyQt6.QtCore import Qt, QStringListModel, QEvent, QDate
 from PyQt6.QtGui import QIcon, QPalette
 
 from myapp.database import JobDatabase
@@ -73,7 +73,7 @@ class JobApplicationCard(QWidget):
         notes,
         last_update,
         on_view=None,
-        **_ignored,  # allows extra fields without crashing
+        **_ignored,
     ):
         super().__init__()
         self.on_view = on_view
@@ -95,7 +95,6 @@ class JobApplicationCard(QWidget):
         self.last_update = last_update or ""
 
         self.setMinimumWidth(400)
-        # self.setMaximumWidth(900)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred,
             QSizePolicy.Policy.Fixed
@@ -134,7 +133,7 @@ class JobApplicationCard(QWidget):
         self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_badge.setContentsMargins(8, 2, 8, 2)
         status_badge_color = STATUS_COLORS.get(self.status, "#6B7280")
-        # Apply inline style for the dynamic color
+        
         self.status_badge.setStyleSheet(f"""
             QLabel#statusBadge {{
                 border-radius: 10px;
@@ -262,9 +261,7 @@ class AddApplicationOverlay(QWidget):
         scroll_layout.setSpacing(10)
 
         # Form
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form = QGridLayout()
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
 
@@ -309,30 +306,62 @@ class AddApplicationOverlay(QWidget):
         self.job_description = QTextEdit()
         self.job_description.setObjectName("formTextEdit")
         self.job_description.setPlaceholderText("Paste job description here...")
-        self.job_description.setAcceptRichText(True)  # Enable rich text
-        self.job_description.setFixedHeight(100)
+        self.job_description.setAcceptRichText(True)
+        self.job_description.setFixedHeight(150)
         
         self.notes = QTextEdit()
         self.notes.setObjectName("formTextEdit")
         self.notes.setPlaceholderText("Additional notes...")
-        self.notes.setAcceptRichText(True)  # Enable rich text
-        self.notes.setFixedHeight(80)
+        self.notes.setAcceptRichText(True)
+        self.notes.setFixedHeight(150)
 
-        # Create labels with asterisks for required fields
-        form.addRow(self._create_label("Company", required=True), self.company)
-        form.addRow(self._create_label("Job title", required=True), self.position)
-        form.addRow(self._create_label("Status", required=True), self.status)
-        form.addRow("Company website", self.company_website)
-        form.addRow("Job location", self.location)
-        form.addRow("Job source", self.job_source)
-        form.addRow("Job type", self.job_type)
-        form.addRow("Date applied", self.date_applied)
-        form.addRow("Contact name", self.contact_name)
-        form.addRow("Contact email", self.contact_email)
-        form.addRow("Salary range", self.salary_range)
-        form.addRow("Job URL", self.job_url)
-        form.addRow("Job description", self.job_description)
-        form.addRow("Notes", self.notes)
+        label_alignment = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        label_alignment_single = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+
+        def add_pair(row, left_label, left_widget, right_label, right_widget):
+            form.addWidget(left_label, row, 0, alignment=label_alignment)
+            form.addWidget(left_widget, row, 1)
+            form.addWidget(right_label, row, 2, alignment=label_alignment)
+            form.addWidget(right_widget, row, 3)
+
+        def add_single(row, label, widget, alignment=None):
+            if alignment:
+                form.addWidget(label, row, 0, alignment=alignment)
+            else:
+                form.addWidget(label, row, 0, alignment=label_alignment)
+            form.addWidget(widget, row, 1, 1, 3)
+
+        pairs = [
+            (("Job title", True), self.position, ("Company", True), self.company),
+            (("Date applied", False), self.date_applied, ("Status", True), self.status),
+            (("Job location", False), self.location, ("Job type", False), self.job_type),
+            (("Job source", False), self.job_source, ("Salary range", False), self.salary_range),
+            (("Contact name", False), self.contact_name, ("Contact email", False), self.contact_email),
+            ]
+        for row, (l_meta, l_widget, r_meta, r_widget) in enumerate(pairs):
+            l_text, l_required = l_meta
+            r_text, r_required = r_meta
+            add_pair(
+                row,
+                self._create_label(l_text, required=l_required), l_widget,
+                self._create_label(r_text, required=r_required), r_widget,
+                )
+        singles = [
+            ("Job URL", self.job_url, None),
+            ("Company website", self.company_website, None),
+            ("Job description", self.job_description, label_alignment_single),
+            ("Notes", self.notes, label_alignment_single),
+            ]
+
+        start_row = len(pairs)
+
+        for offset, (text, widget, alignment) in enumerate(singles):
+            add_single(
+                start_row + offset,
+                QLabel(text),
+                widget,
+                alignment
+                )
 
         scroll_layout.addLayout(form)
         scroll_area.setWidget(scroll_content)
@@ -430,7 +459,7 @@ class AddApplicationOverlay(QWidget):
             "status": status,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
-            "job_source": self.job_source.text().strip() or None,
+            "source": self.job_source.text().strip() or None,
             "job_type": job_type,
             "date_applied": self.date_applied.text().strip() or None,
             "contact_name": self.contact_name.text().strip() or None,
@@ -524,31 +553,14 @@ class ViewApplicationOverlay(QWidget):
         scroll_layout.setContentsMargins(0, 0, 8, 0)
         scroll_layout.setSpacing(10)
 
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form = QGridLayout()
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
 
-        fields = [
-            ("Company", "company"),
-            ("Job title", "position"),
-            ("Status", "status"),
-            ("Company website", "company_website"),
-            ("Job location", "location"),
-            ("Job source", "job_source"),
-            ("Job type", "job_type"),
-            ("Date applied", "date_applied"),
-            ("Contact name", "contact_name"),
-            ("Contact email", "contact_email"),
-            ("Salary range", "salary_range"),
-            ("Job URL", "job_url"),
-            ("Job description", "job_description"),
-            ("Notes", "notes"),
-            ("Last update", "last_update"),
-        ]
+        label_alignment = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        label_alignment_single = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
 
-        for label_text, key in fields:
+        def make_value_label(key: str) -> QLabel:
             value = self.job.get(key, "")
             if value is None or value == "":
                 value = "—"
@@ -560,9 +572,47 @@ class ViewApplicationOverlay(QWidget):
                 | Qt.TextInteractionFlag.TextSelectableByKeyboard
             )
             value_label.setWordWrap(True)
-            form.addRow(label_text, value_label)
+            return value_label
+
+        def add_pair(row, left_text, left_key, right_text, right_key):
+            form.addWidget(QLabel(left_text), row, 0, alignment=label_alignment)
+            form.addWidget(make_value_label(left_key), row, 1)
+            form.addWidget(QLabel(right_text), row, 2, alignment=label_alignment)
+            form.addWidget(make_value_label(right_key), row, 3)
+
+        def add_single(row, text, key, alignment=None):
+            if alignment:
+                form.addWidget(QLabel(text), row, 0, alignment=alignment)
+            else:
+                form.addWidget(QLabel(text), row, 0, alignment=label_alignment)
+            form.addWidget(make_value_label(key), row, 1, 1, 3)
+
+        pairs = [
+            ("Job title", "position", "Company", "company"),
+            ("Date applied", "date_applied", "Status", "status"),
+            ("Job location", "location", "Job type", "job_type"),
+            ("Job source", "job_source", "Salary range", "salary_range"),
+            ("Contact name", "contact_name", "Contact email", "contact_email"),
+        ]
+
+        for row, (l_text, l_key, r_text, r_key) in enumerate(pairs):
+            add_pair(row, l_text, l_key, r_text, r_key)
+
+        singles = [
+            ("Job URL", "job_url", None),
+            ("Company website", "company_website", None),
+            ("Job description", "job_description", label_alignment_single),
+            ("Notes", "notes", label_alignment_single),
+            ("Last update", "last_update", None),
+        ]
+
+        start_row = len(pairs)
+
+        for offset, (text, key, alignment) in enumerate(singles):
+            add_single(start_row + offset, text, key, alignment)
 
         scroll_layout.addLayout(form)
+        scroll_layout.addStretch(1)
         scroll_area.setWidget(scroll_content)
         dialog_layout.addWidget(scroll_area, 1)
 
@@ -685,9 +735,7 @@ class EditApplicationOverlay(QWidget):
         scroll_layout.setContentsMargins(0, 0, 8, 0)
         scroll_layout.setSpacing(10)
 
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form = QGridLayout()
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
 
@@ -705,19 +753,21 @@ class EditApplicationOverlay(QWidget):
         current_status = (self.job.get("status") or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
-        self.status = QComboBox()
-        self.status.setObjectName("formCombo")
-        self.status.addItems(JOB_TYPE_OPTIONS)
-        current_status = (self.job.get("job_type") or "").strip()
-        idx = self.status.findText(current_status)
-        self.status.setCurrentIndex(idx if idx >= 0 else 0)
+
+        self.job_type = QComboBox()
+        self.job_type.setObjectName("formCombo")
+        self.job_type.addItems(JOB_TYPE_OPTIONS)
+        current_job_type = (self.job.get("job_type") or "").strip()
+        idx = self.job_type.findText(current_job_type)
+        self.job_type.setCurrentIndex(idx if idx >= 0 else 0)
 
         self.location = QLineEdit(self.job.get("location") or "")
         self.location.setObjectName("formInput")
         self.job_source = QLineEdit(self.job.get("job_source") or "")
         self.job_source.setObjectName("formInput")
-        self.date_applied = QLineEdit(self.job.get("date_applied") or "")
-        self.date_applied.setObjectName("formInput")
+        date = QDate.fromString(self.job.get("date_applied"), Qt.DateFormat.ISODate)
+        self.date_applied = NoScrollDateEdit(date)
+        self.date_applied.setObjectName("formDate")
         self.contact_name = QLineEdit(self.job.get("contact_name") or "")
         self.contact_name.setObjectName("formInput")
         self.contact_email = QLineEdit(self.job.get("contact_email") or "")
@@ -731,27 +781,53 @@ class EditApplicationOverlay(QWidget):
         self.job_description.setObjectName("formTextEdit")
         self.job_description.setAcceptRichText(True)  # Enable rich text
         self.job_description.setHtml(self.job.get("job_description") or "")  # Load as HTML
-        self.job_description.setFixedHeight(120)
+        self.job_description.setFixedHeight(150)
         
         self.notes = QTextEdit()
         self.notes.setObjectName("formTextEdit")
         self.notes.setAcceptRichText(True)  # Enable rich text
         self.notes.setHtml(self.job.get("notes") or "")  # Load as HTML
-        self.notes.setFixedHeight(100)
+        self.notes.setFixedHeight(150)
 
-        form.addRow("Company", self.company)
-        form.addRow("Job title", self.position)
-        form.addRow("Status", self.status)
-        form.addRow("Company website", self.company_website)
-        form.addRow("Job location", self.location)
-        form.addRow("Job source", self.job_source)
-        form.addRow("Date applied", self.date_applied)
-        form.addRow("Contact name", self.contact_name)
-        form.addRow("Contact email", self.contact_email)
-        form.addRow("Salary range", self.salary_range)
-        form.addRow("Job URL", self.job_url)
-        form.addRow("Job description", self.job_description)
-        form.addRow("Notes", self.notes)
+        label_alignment = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        label_alignment_single = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+
+        def add_pair(row, left_text, left_widget, right_text, right_widget):
+            form.addWidget(QLabel(left_text), row, 0, alignment=label_alignment)
+            form.addWidget(left_widget, row, 1)
+            form.addWidget(QLabel(right_text), row, 2, alignment=label_alignment)
+            form.addWidget(right_widget, row, 3)
+
+        def add_single(row, text, widget, alignment=None):
+            if alignment:
+                form.addWidget(QLabel(text), row, 0, alignment=alignment)
+            else:
+                form.addWidget(QLabel(text), row, 0, alignment=label_alignment)
+            form.addWidget(widget, row, 1, 1, 3)
+
+        pairs = [
+            ("Job title", self.position, "Company", self.company),
+            ("Date applied", self.date_applied, "Status", self.status),
+            ("Job location", self.location, "Job type", self.job_type),
+            ("Job source", self.job_source, "Salary range", self.salary_range),
+            ("Contact name", self.contact_name, "Contact email", self.contact_email),
+            ]
+
+        for row, (l_text, l_widget, r_text, r_widget) in enumerate(pairs):
+            add_pair(row, l_text, l_widget, r_text, r_widget)
+
+        singles = [
+            ("Job URL", self.job_url, None),
+            ("Company website", self.company_website, None),
+            ("Job description", self.job_description, label_alignment_single),
+            ("Notes", self.notes, label_alignment_single),
+            ]
+
+        start_row = len(pairs)
+
+        for offset, (text, widget, alignment) in enumerate(singles):
+            add_single(start_row + offset, text, widget, alignment)
+
 
         scroll_layout.addLayout(form)
         scroll_area.setWidget(scroll_content)
@@ -836,7 +912,7 @@ class EditApplicationOverlay(QWidget):
             "status": self.status.currentText(),
             "location": self.location.text(),
             "job_source": self.job_source.text(),
-            "job_type": self.job_type.text(),
+            "job_type": self.job_type.currentText(),
             "date_applied": self.date_applied.text(),
             "contact_name": self.contact_name.text(),
             "contact_email": self.contact_email.text(),

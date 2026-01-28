@@ -12,12 +12,15 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QDate
 
 class NoScrollDateEdit(QDateEdit):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, date=None):
         super().__init__(parent)
         # Set default configuration
         self.setDisplayFormat("dd/MM/yyyy")
         self.setCalendarPopup(True)
-        self.setDate(QDate.currentDate())
+        if date is QDate:
+            self.setDate(date)
+        else:
+            self.setDate(QDate.currentDate())
         self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
 
     def wheelEvent(self, event):
