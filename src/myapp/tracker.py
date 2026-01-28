@@ -123,7 +123,17 @@ class JobApplicationCard(QWidget):
         self.status_badge.setObjectName("statusBadge")
         self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_badge.setContentsMargins(8, 2, 8, 2)
-        status_badge_color = STATUS_COLORS.get(self.status)
+        status_badge_color = STATUS_COLORS.get(self.status, "#6B7280")
+        # Apply inline style for the dynamic color
+        self.status_badge.setStyleSheet(f"""
+            QLabel#statusBadge {{
+                border-radius: 10px;
+                padding: 2px 8px;
+                font-size: 11px;
+                color: #ffffff;
+                background-color: {status_badge_color};
+            }}
+        """)
 
         top_row.addWidget(self.company_label)
         top_row.addStretch()
@@ -164,43 +174,6 @@ class JobApplicationCard(QWidget):
         layout.addLayout(middle_row)
         layout.addLayout(bottom_row)
 
-        # Simple stylesheet for card, badge, etc.
-        self.setStyleSheet(
-            f"""
-            QFrame#cardFrame {{
-                border: 1px solid #cccccc;
-                border-radius: 6px;
-            }}
-
-            QLabel#companyLabel {{
-                font-weight: 600;
-                font-size: 14px;
-            }}
-
-            QLabel#positionLabel {{
-                font-size: 13px;
-            }}
-
-            QLabel#dateLabel, QLabel#locationLabel {{
-                font-size: 11px;
-                color: #666666;
-            }}
-
-            QLabel#statusBadge {{
-                border-radius: 10px;
-                padding: 2px 8px;
-                font-size: 11px;
-                color: #ffffff;
-                background-color: {status_badge_color};
-            }}
-
-            QPushButton#detailsButton {{
-                font-size: 11px;
-                padding: 4px 10px;
-            }}
-            """
-        )
-
     def _handle_view_clicked(self):
         if callable(self.on_view):
             # pass a job dict (same shape you already use elsewhere)
@@ -227,127 +200,13 @@ class AddApplicationOverlay(QWidget):
     - pressing the X button
     - clicking outside the popup panel
     """
-    def __init__(self, parent: QWidget, palette: QPalette, on_submit):
+    def __init__(self, parent: QWidget, on_submit):
         super().__init__(parent)
         self.on_submit = on_submit
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName("overlay")
+        self.setObjectName("addOverlay")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        # Extract colors
-        window_bg = palette.color(QPalette.ColorRole.Window)
-        text_color = palette.color(QPalette.ColorRole.WindowText)
-        base_bg = palette.color(QPalette.ColorRole.Base)
-        button_bg = palette.color(QPalette.ColorRole.Button)
-        highlight = palette.color(QPalette.ColorRole.Highlight)
-        
-        # Create slightly lighter/darker variants
-        dialog_bg = window_bg.lighter(110)  # 10% lighter
-        border_color = window_bg.lighter(140)
-        hover_bg = button_bg.lighter(120)
-        
-        # Build stylesheet using system colors
-        with resources.as_file(resources.files("myapp.resources.icons").joinpath("calendar.png")) as path:
-            CALENDAR_ICON_PATH = str(path)
-            CALENDAR_ICON_PATH = CALENDAR_ICON_PATH.replace("\\", "/")
-        self.setStyleSheet(f"""
-            QWidget#overlay {{
-                background-color: rgba(0, 0, 0, 180);
-            }}
-            QFrame#dialogFrame {{
-                background-color: {dialog_bg.name()};
-                border-radius: 12px;
-                border: 1px solid {border_color.name()};
-            }}
-            QLabel {{
-                color: {text_color.name()};
-            }}
-            QLineEdit, QTextEdit, QDateEdit {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 6px;
-            }}
-            QLineEdit:focus, QTextEdit:focus, QDateEdit:focus {{
-                border: 1px solid {highlight.name()};
-            }}
-            QDateEdit::down-arrow {{
-                image: url("{CALENDAR_ICON_PATH}");
-                width: 16px;
-                height: 16px;
-            }}
-            QDateEdit::drop-down {{
-                border: none;
-                padding-right: 6px;
-            }}
-            QComboBox {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 6px;
-            }}
-            QComboBox::drop-down {{
-                border: none;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                selection-background-color: {highlight.name()};
-            }}
-            QPushButton {{
-                background-color: {button_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: {hover_bg.name()};
-            }}
-            QPushButton#saveBtn {{
-                background-color: {highlight.name()};
-                border: 1px solid {highlight.name()};
-            }}
-            QPushButton#saveBtn:hover {{
-                background-color: {highlight.darker(110).name()};
-            }}
-            QPushButton#closeBtn {{
-                background-color: transparent;
-                border: none;
-                font-size: 18px;
-                padding: 4px 8px;
-                color: {text_color.darker(150).name()};
-            }}
-            QPushButton#closeBtn:hover {{
-                background-color: rgba(128, 128, 128, 50);
-                border-radius: 6px;
-                color: {text_color.name()};
-            }}
-            QScrollArea {{
-                border: none;
-                background-color: transparent;
-            }}
-            QScrollBar:vertical {{
-                background-color: {base_bg.name()};
-                width: 12px;
-                border-radius: 6px;
-            }}
-            QScrollBar::handle:vertical {{
-                background-color: {border_color.name()};
-                border-radius: 6px;
-                min-height: 20px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background-color: {hover_bg.name()};
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-        """)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(60, 40, 60, 80)
@@ -364,12 +223,7 @@ class AddApplicationOverlay(QWidget):
         # Title row + close button (NOT scrollable)
         title_row = QHBoxLayout()
         title = QLabel("Add Application")
-        title.setStyleSheet(f"""
-            font-weight: 600; 
-            font-size: 18px; 
-            color: {text_color.name()};
-            letter-spacing: -0.3px;
-        """)
+        title.setObjectName("dialogTitle")
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -384,6 +238,7 @@ class AddApplicationOverlay(QWidget):
 
         # Scrollable area for the form
         scroll_area = QScrollArea()
+        scroll_area.setObjectName("dialogScroll")
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -402,32 +257,47 @@ class AddApplicationOverlay(QWidget):
         form.setVerticalSpacing(10)
 
         self.company = QLineEdit()
+        self.company.setObjectName("formInput")
         self.company.setPlaceholderText("e.g., Google")
         self.position = QLineEdit()
+        self.position.setObjectName("formInput")
         self.position.setPlaceholderText("e.g., Software Engineer")
 
         self.status = NoScrollComboBox()
+        self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
 
         self.company_website = QLineEdit()
+        self.company_website.setObjectName("formInput")
         self.company_website.setPlaceholderText("https://...")
         self.location = QLineEdit()
+        self.location.setObjectName("formInput")
         self.location.setPlaceholderText("e.g., London, UK")
         self.date_applied = NoScrollDateEdit()
+        self.date_applied.setObjectName("formDate")
         self.contact_name = QLineEdit()
+        self.contact_name.setObjectName("formInput")
         self.contact_name.setPlaceholderText("Recruiter name")
         self.contact_email = QLineEdit()
+        self.contact_email.setObjectName("formInput")
         self.contact_email.setPlaceholderText("email@company.com")
         self.salary_range = QLineEdit()
+        self.salary_range.setObjectName("formInput")
         self.salary_range.setPlaceholderText("e.g., £100k - £150k")
         self.job_url = QLineEdit()
+        self.job_url.setObjectName("formInput")
         self.job_url.setPlaceholderText("https://...")
 
         self.job_description = QTextEdit()
+        self.job_description.setObjectName("formTextEdit")
         self.job_description.setPlaceholderText("Paste job description here...")
+        self.job_description.setAcceptRichText(True)  # Enable rich text
         self.job_description.setFixedHeight(100)
+        
         self.notes = QTextEdit()
+        self.notes.setObjectName("formTextEdit")
         self.notes.setPlaceholderText("Additional notes...")
+        self.notes.setAcceptRichText(True)  # Enable rich text
         self.notes.setFixedHeight(80)
 
         # Create labels with asterisks for required fields
@@ -454,6 +324,7 @@ class AddApplicationOverlay(QWidget):
         actions.addStretch()
 
         cancel = QPushButton("Cancel")
+        cancel.setObjectName("cancelBtn")
         cancel.clicked.connect(self.close)
         cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel.setFixedHeight(36)
@@ -543,8 +414,8 @@ class AddApplicationOverlay(QWidget):
             "contact_email": self.contact_email.text().strip() or None,
             "salary_range": self.salary_range.text().strip() or None,
             "job_url": self.job_url.text().strip() or None,
-            "job_description": self.job_description.toPlainText().strip() or None,
-            "notes": self.notes.toPlainText().strip() or None,
+            "job_description": self.job_description.toHtml().strip() or None,  # Save as HTML to preserve formatting
+            "notes": self.notes.toHtml().strip() or None,  # Save as HTML to preserve formatting
             "cv_pdf": None,
             "cv_text": None,
             "cover_letter_pdf": None,
@@ -571,110 +442,15 @@ class ViewApplicationOverlay(QWidget):
 
     Shows all values (read-only) and provides a Remove button.
     """
-    def __init__(self, parent: QWidget, palette: QPalette, job: dict, on_remove, on_edit):
+    def __init__(self, parent: QWidget, job: dict, on_remove, on_edit):
         super().__init__(parent)
         self.job = dict(job)  # defensive copy
         self.on_remove = on_remove
         self.on_edit = on_edit
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName("overlay")
+        self.setObjectName("viewOverlay")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        # Extract colours
-        window_bg = palette.color(QPalette.ColorRole.Window)
-        text_color = palette.color(QPalette.ColorRole.WindowText)
-        base_bg = palette.color(QPalette.ColorRole.Base)
-        button_bg = palette.color(QPalette.ColorRole.Button)
-        # highlight = palette.color(QPalette.ColorRole.Highlight)
-
-        dialog_bg = window_bg.lighter(110)
-        border_color = window_bg.lighter(140)
-        hover_bg = button_bg.lighter(120)
-
-        self.setStyleSheet(f"""
-            QWidget#overlay {{
-                background-color: rgba(0, 0, 0, 180);
-            }}
-            QFrame#dialogFrame {{
-                background-color: {dialog_bg.name()};
-                border-radius: 12px;
-                border: 1px solid {border_color.name()};
-            }}
-            QLabel {{
-                color: {text_color.name()};
-            }}
-            QLabel#valueLabel {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: none;
-                border-radius: 6px;
-                padding: 6px;
-            }}
-            QPushButton {{
-                background-color: {button_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: {hover_bg.name()};
-            }}
-            QPushButton#removeBtn {{
-                background-color: rgba(220, 53, 69, 210);
-                border: 1px solid rgba(220, 53, 69, 210);
-                color: white;
-            }}
-            QPushButton#removeBtn:hover {{
-                background-color: rgba(220, 53, 69, 235);
-            }}
-            QPushButton#closeBtn {{
-                background-color: transparent;
-                border: none;
-                font-size: 18px;
-                padding: 4px 8px;
-                color: {text_color.darker(150).name()};
-            }}
-            QPushButton#closeBtn:hover {{
-                background-color: rgba(128, 128, 128, 50);
-                border-radius: 6px;
-                color: {text_color.name()};
-            }}
-            QPushButton#editBtn {{
-                background-color: transparent;
-                border: none;
-                font-size: 16px;
-                padding: 4px 8px;
-                color: {text_color.darker(150).name()};
-            }}
-            QPushButton#editBtn:hover {{
-                background-color: rgba(128, 128, 128, 50);
-                border-radius: 6px;
-                color: {text_color.name()};
-            }}
-            QScrollArea {{
-                border: none;
-                background-color: transparent;
-            }}
-            QScrollBar:vertical {{
-                background-color: {base_bg.name()};
-                width: 12px;
-                border-radius: 6px;
-            }}
-            QScrollBar::handle:vertical {{
-                background-color: {border_color.name()};
-                border-radius: 6px;
-                min-height: 20px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background-color: {hover_bg.name()};
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-        """)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(60, 40, 60, 80)
@@ -691,12 +467,7 @@ class ViewApplicationOverlay(QWidget):
         # Title row + close button (NOT scrollable)
         title_row = QHBoxLayout()
         title = QLabel("Application Details")
-        title.setStyleSheet(f"""
-            font-weight: 600; 
-            font-size: 18px; 
-            color: {text_color.name()};
-            letter-spacing: -0.3px;
-        """)
+        title.setObjectName("dialogTitle")
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -720,6 +491,7 @@ class ViewApplicationOverlay(QWidget):
 
         # Scrollable area for the read-only fields
         scroll_area = QScrollArea()
+        scroll_area.setObjectName("dialogScroll")
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -773,6 +545,7 @@ class ViewApplicationOverlay(QWidget):
         actions.addStretch()
 
         close = QPushButton("Close")
+        close.setObjectName("cancelBtn")
         close.setCursor(Qt.CursorShape.PointingHandCursor)
         close.clicked.connect(self.close)
         close.setFixedHeight(36)
@@ -838,108 +611,15 @@ class ViewApplicationOverlay(QWidget):
             super().keyPressEvent(event)
 
 class EditApplicationOverlay(QWidget):
-    def __init__(self, parent: QWidget, palette: QPalette, job: dict, on_save, on_remove):
+    def __init__(self, parent: QWidget, job: dict, on_save, on_remove):
         super().__init__(parent)
         self.job = dict(job)          # original snapshot
         self.on_save = on_save        # fn(job_id:int, changes:dict)
         self.on_remove = on_remove    # fn(job_id:int)
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName("overlay")
+        self.setObjectName("editOverlay")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        # Colours (same approach as before)
-        window_bg = palette.color(QPalette.ColorRole.Window)
-        text_color = palette.color(QPalette.ColorRole.WindowText)
-        base_bg = palette.color(QPalette.ColorRole.Base)
-        button_bg = palette.color(QPalette.ColorRole.Button)
-        highlight = palette.color(QPalette.ColorRole.Highlight)
-
-        dialog_bg = window_bg.lighter(110)
-        border_color = window_bg.lighter(140)
-        hover_bg = button_bg.lighter(120)
-
-        self.setStyleSheet(f"""
-            QWidget#overlay {{ background-color: rgba(0, 0, 0, 180); }}
-            QFrame#dialogFrame {{
-                background-color: {dialog_bg.name()};
-                border-radius: 12px;
-                border: 1px solid {border_color.name()};
-            }}
-            QLabel {{ color: {text_color.name()}; }}
-            QLineEdit, QTextEdit {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 6px;
-            }}
-            QLineEdit:focus, QTextEdit:focus {{
-                border: 1px solid {highlight.name()};
-            }}
-            QComboBox {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 6px;
-            }}
-            QComboBox::drop-down {{ border: none; }}
-            QComboBox QAbstractItemView {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                selection-background-color: {highlight.name()};
-            }}
-            QPushButton {{
-                background-color: {button_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{ background-color: {hover_bg.name()}; }}
-            QPushButton#saveBtn {{
-                background-color: {highlight.name()};
-                border: 1px solid {highlight.name()};
-            }}
-            QPushButton#saveBtn:hover {{
-                background-color: {highlight.darker(110).name()};
-            }}
-            QPushButton#removeBtn {{
-                background-color: rgba(220, 53, 69, 210);
-                border: 1px solid rgba(220, 53, 69, 210);
-                color: white;
-            }}
-            QPushButton#removeBtn:hover {{
-                background-color: rgba(220, 53, 69, 235);
-            }}
-            QPushButton#closeBtn {{
-                background-color: transparent;
-                border: none;
-                font-size: 18px;
-                padding: 4px 8px;
-                color: {text_color.darker(150).name()};
-            }}
-            QPushButton#closeBtn:hover {{
-                background-color: rgba(128, 128, 128, 50);
-                border-radius: 6px;
-                color: {text_color.name()};
-            }}
-            QScrollArea {{ border: none; background-color: transparent; }}
-            QScrollBar:vertical {{
-                background-color: {base_bg.name()};
-                width: 12px;
-                border-radius: 6px;
-            }}
-            QScrollBar::handle:vertical {{
-                background-color: {border_color.name()};
-                border-radius: 6px;
-                min-height: 20px;
-            }}
-            QScrollBar::handle:vertical:hover {{ background-color: {hover_bg.name()}; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
-        """)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(60, 40, 60, 80)
@@ -956,12 +636,7 @@ class EditApplicationOverlay(QWidget):
         # Title row
         title_row = QHBoxLayout()
         title = QLabel("Edit Application")
-        title.setStyleSheet(f"""
-            font-weight: 600; 
-            font-size: 18px; 
-            color: {text_color.name()};
-            letter-spacing: -0.3px;
-        """)
+        title.setObjectName("dialogTitle")
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -975,6 +650,7 @@ class EditApplicationOverlay(QWidget):
 
         # Scrollable form
         scroll_area = QScrollArea()
+        scroll_area.setObjectName("dialogScroll")
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -992,25 +668,42 @@ class EditApplicationOverlay(QWidget):
 
         # Editable widgets
         self.company = QLineEdit(self.job.get("company") or "")
+        self.company.setObjectName("formInput")
         self.company_website = QLineEdit(self.job.get("company_website") or "")
+        self.company_website.setObjectName("formInput")
         self.position = QLineEdit(self.job.get("position") or "")
+        self.position.setObjectName("formInput")
 
         self.status = QComboBox()
+        self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
         current_status = (self.job.get("status") or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
 
         self.location = QLineEdit(self.job.get("location") or "")
+        self.location.setObjectName("formInput")
         self.date_applied = QLineEdit(self.job.get("date_applied") or "")
+        self.date_applied.setObjectName("formInput")
         self.contact_name = QLineEdit(self.job.get("contact_name") or "")
+        self.contact_name.setObjectName("formInput")
         self.contact_email = QLineEdit(self.job.get("contact_email") or "")
+        self.contact_email.setObjectName("formInput")
         self.salary_range = QLineEdit(self.job.get("salary_range") or "")
+        self.salary_range.setObjectName("formInput")
         self.job_url = QLineEdit(self.job.get("job_url") or "")
+        self.job_url.setObjectName("formInput")
 
-        self.job_description = QTextEdit(self.job.get("job_description") or "")
+        self.job_description = QTextEdit()
+        self.job_description.setObjectName("formTextEdit")
+        self.job_description.setAcceptRichText(True)  # Enable rich text
+        self.job_description.setHtml(self.job.get("job_description") or "")  # Load as HTML
         self.job_description.setFixedHeight(120)
-        self.notes = QTextEdit(self.job.get("notes") or "")
+        
+        self.notes = QTextEdit()
+        self.notes.setObjectName("formTextEdit")
+        self.notes.setAcceptRichText(True)  # Enable rich text
+        self.notes.setHtml(self.job.get("notes") or "")  # Load as HTML
         self.notes.setFixedHeight(100)
 
         form.addRow("Company", self.company)
@@ -1035,6 +728,7 @@ class EditApplicationOverlay(QWidget):
         actions.addStretch()
 
         cancel = QPushButton("Cancel")
+        cancel.setObjectName("cancelBtn")
         cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel.clicked.connect(self.close)
         cancel.setFixedHeight(36)
@@ -1112,8 +806,8 @@ class EditApplicationOverlay(QWidget):
             "contact_email": self.contact_email.text(),
             "salary_range": self.salary_range.text(),
             "job_url": self.job_url.text(),
-            "job_description": self.job_description.toPlainText(),
-            "notes": self.notes.toPlainText(),
+            "job_description": self.job_description.toHtml(),  # Save as HTML
+            "notes": self.notes.toHtml(),  # Save as HTML
         }
 
         # Convert empty strings to None (so DB stores NULL, like your add overlay)
@@ -1170,6 +864,7 @@ class TrackerPage(QWidget):
         # TODO: Figure out how to make the border round (StyleSheet is not working for that)
         # Maybe using a container widget could help
         self.searchbar = QLineEdit()
+        self.searchbar.setObjectName("searchBar")
         self.searchbar.setPlaceholderText(
             "Search jobs by company, position, or location..."
             )
@@ -1180,53 +875,21 @@ class TrackerPage(QWidget):
             QLineEdit.ActionPosition.LeadingPosition
             )
 
-        self.searchbar.setStyleSheet("""
-            QLineEdit {
-                border: 1px solid #cfcfcf;
-                border-radius: 18px;
-                padding: 6px;
-                font-size: 12px;
-            }
-
-            QLineEdit:focus {
-                border: 1px solid #5a8dee;
-            }""")
-
         # Adding Completer.
         self.completer = QCompleter()
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.searchbar.setCompleter(self.completer)
         popup = self.completer.popup()
+        popup.setObjectName("completerPopup")
         popup.setUniformItemSizes(True)
         popup.setMaximumHeight((self.searchbar.fontMetrics().height() + 4) * self.ROWS_COMPLETER + 2)
-        popup.setStyleSheet("""
-            QListView {
-                border: 1px solid #cccccc;
-                border-radius: 2px;
-                padding: 1px;
-            }
-
-            QListView::item {
-                padding: 1px;
-            }
-
-            QListView::item:selected {
-                border-radius: 2px;
-                background-color: palette(highlight);
-                color: palette(highlighted-text);
-            }
-
-            QListView::item:hover {
-                border-radius: 2px;
-                background-color: palette(highlight);
-                color: palette(highlighted-text);
-            }""")
 
         title_layout.addWidget(self.searchbar)
         header_layout.addLayout(title_layout, stretch=1)
 
         self.add_application_button = QPushButton("Add Application")
+        self.add_application_button.setObjectName("addButton")
         self.add_application_button.clicked.connect(self.add_application)
         self.add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -1256,7 +919,261 @@ class TrackerPage(QWidget):
         self.job_card_widgets = []
         self._overlay = None
 
+        # Apply consolidated stylesheet
+        self._apply_stylesheet()
+
         self.refresh_from_db()
+
+    def _apply_stylesheet(self):
+        """Apply consolidated stylesheet for all components."""
+        # Extract colors from palette
+        window_bg = self.palette.color(QPalette.ColorRole.Window)
+        text_color = self.palette.color(QPalette.ColorRole.WindowText)
+        base_bg = self.palette.color(QPalette.ColorRole.Base)
+        button_bg = self.palette.color(QPalette.ColorRole.Button)
+        highlight = self.palette.color(QPalette.ColorRole.Highlight)
+        
+        # Create slightly lighter/darker variants
+        dialog_bg = window_bg.lighter(110)
+        border_color = window_bg.lighter(140)
+        hover_bg = button_bg.lighter(120)
+        
+        # Get calendar icon path
+        with resources.as_file(resources.files("myapp.resources.icons").joinpath("calendar.png")) as path:
+            CALENDAR_ICON_PATH = str(path).replace("\\", "/")
+        
+        # Consolidated stylesheet
+        stylesheet = f"""
+            /* ==================== SEARCH BAR ==================== */
+            QLineEdit#searchBar {{
+                border: 1px solid #cfcfcf;
+                border-radius: 18px;
+                padding: 6px;
+                font-size: 12px;
+            }}
+            QLineEdit#searchBar:focus {{
+                border: 1px solid #5a8dee;
+            }}
+            
+            /* ==================== COMPLETER POPUP ==================== */
+            QListView#completerPopup {{
+                border: 1px solid #cccccc;
+                border-radius: 2px;
+                padding: 1px;
+            }}
+            QListView#completerPopup::item {{
+                padding: 1px;
+            }}
+            QListView#completerPopup::item:selected {{
+                border-radius: 2px;
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }}
+            QListView#completerPopup::item:hover {{
+                border-radius: 2px;
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }}
+            
+            /* ==================== ADD APPLICATION BUTTON ==================== */
+            QPushButton#addButton {{
+                background-color: {button_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }}
+            QPushButton#addButton:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            
+            /* ==================== JOB CARDS ==================== */
+            QFrame#cardFrame {{
+                border: 1px solid #cccccc;
+                border-radius: 6px;
+            }}
+            QLabel#companyLabel {{
+                font-weight: 600;
+                font-size: 14px;
+            }}
+            QLabel#positionLabel {{
+                font-size: 13px;
+            }}
+            QLabel#dateLabel, QLabel#locationLabel {{
+                font-size: 11px;
+                color: #666666;
+            }}
+            QPushButton#detailsButton {{
+                font-size: 11px;
+                padding: 4px 10px;
+            }}
+            
+            /* ==================== OVERLAY BACKGROUNDS ==================== */
+            QWidget#addOverlay, QWidget#viewOverlay, QWidget#editOverlay {{
+                background-color: rgba(0, 0, 0, 180);
+            }}
+            
+            /* ==================== DIALOG FRAMES ==================== */
+            QFrame#dialogFrame {{
+                background-color: {dialog_bg.name()};
+                border-radius: 12px;
+                border: 1px solid {border_color.name()};
+            }}
+            
+            /* ==================== DIALOG TITLES ==================== */
+            QLabel#dialogTitle {{
+                font-weight: 600; 
+                font-size: 18px; 
+                color: {text_color.name()};
+                letter-spacing: -0.3px;
+            }}
+            
+            /* ==================== FORM INPUTS ==================== */
+            QLineEdit#formInput, QTextEdit#formTextEdit, QDateEdit#formDate {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            QLineEdit#formInput:focus, QTextEdit#formTextEdit:focus, QDateEdit#formDate:focus {{
+                border: 1px solid {highlight.name()};
+            }}
+            
+            /* ==================== DATE EDIT CALENDAR ICON ==================== */
+            QDateEdit#formDate::down-arrow {{
+                image: url("{CALENDAR_ICON_PATH}");
+                width: 16px;
+                height: 16px;
+            }}
+            QDateEdit#formDate::drop-down {{
+                border: none;
+                padding-right: 6px;
+            }}
+            
+            /* ==================== COMBOBOX ==================== */
+            QComboBox#formCombo {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            QComboBox#formCombo::drop-down {{
+                border: none;
+            }}
+            QComboBox#formCombo QAbstractItemView {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                selection-background-color: {highlight.name()};
+            }}
+            
+            /* ==================== VALUE LABELS (READ-ONLY) ==================== */
+            QLabel#valueLabel {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: none;
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            
+            /* ==================== VALUE TEXT EDIT (READ-ONLY) ==================== */
+            QTextEdit#valueTextEdit {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 6px;
+            }}
+            
+            /* ==================== BUTTONS ==================== */
+            QPushButton#cancelBtn {{
+                background-color: {button_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }}
+            QPushButton#cancelBtn:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            
+            QPushButton#saveBtn {{
+                background-color: {highlight.name()};
+                border: 1px solid {highlight.name()};
+                color: white;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }}
+            QPushButton#saveBtn:hover {{
+                background-color: {highlight.darker(110).name()};
+            }}
+            
+            QPushButton#removeBtn {{
+                background-color: rgba(220, 53, 69, 210);
+                border: 1px solid rgba(220, 53, 69, 210);
+                color: white;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }}
+            QPushButton#removeBtn:hover {{
+                background-color: rgba(220, 53, 69, 235);
+            }}
+            
+            QPushButton#closeBtn {{
+                background-color: transparent;
+                border: none;
+                font-size: 18px;
+                padding: 4px 8px;
+                color: {text_color.darker(150).name()};
+            }}
+            QPushButton#closeBtn:hover {{
+                background-color: rgba(128, 128, 128, 50);
+                border-radius: 6px;
+                color: {text_color.name()};
+            }}
+            
+            QPushButton#editBtn {{
+                background-color: transparent;
+                border: none;
+                font-size: 16px;
+                padding: 4px 8px;
+                color: {text_color.darker(150).name()};
+            }}
+            QPushButton#editBtn:hover {{
+                background-color: rgba(128, 128, 128, 50);
+                border-radius: 6px;
+                color: {text_color.name()};
+            }}
+            
+            /* ==================== SCROLL AREAS ==================== */
+            QScrollArea#dialogScroll {{
+                border: none;
+                background-color: transparent;
+            }}
+            QScrollBar:vertical {{
+                background-color: {base_bg.name()};
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {border_color.name()};
+                border-radius: 6px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {hover_bg.name()};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """
+        
+        self.setStyleSheet(stylesheet)
 
     def add_application(self):
         """Open the in-window overlay popup to add a new job application."""
@@ -1269,7 +1186,7 @@ class TrackerPage(QWidget):
             self.db.add_job(**payload)
             self.refresh_from_db()
         
-        self._overlay = AddApplicationOverlay(self, self.palette, on_submit=on_submit)
+        self._overlay = AddApplicationOverlay(self, on_submit=on_submit)
         self._overlay.show()
         self._overlay.raise_()
 
@@ -1288,7 +1205,6 @@ class TrackerPage(QWidget):
 
         self._overlay = ViewApplicationOverlay(
             self,
-            self.palette,
             job=job,
             on_remove=on_remove,
             on_edit=on_edit,
@@ -1312,7 +1228,6 @@ class TrackerPage(QWidget):
 
         self._overlay = EditApplicationOverlay(
             self,
-            self.palette,
             job=job,
             on_save=on_save,
             on_remove=on_remove,
