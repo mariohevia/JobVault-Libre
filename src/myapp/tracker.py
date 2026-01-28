@@ -38,6 +38,12 @@ STATUS_OPTIONS = [
     "Withdrawn",
     ]
 
+JOB_TYPE_OPTIONS = [
+    "Full time",
+    "Part time",
+    "Contract",
+    ]
+
 STATUS_COLORS = {
     "Applied": "#3B82F6",              # Blue - neutral/informative
     "Interview Scheduled": "#F59E0B",   # Amber - attention/upcoming
@@ -56,6 +62,8 @@ class JobApplicationCard(QWidget):
         position,
         status,
         location,
+        job_source,
+        job_type,
         date_applied,
         contact_name,
         contact_email,
@@ -75,6 +83,8 @@ class JobApplicationCard(QWidget):
         self.position = position or ""
         self.status = status or ""
         self.location = location or ""
+        self.job_source = job_source or ""
+        self.job_type = job_type or ""
         self.date_applied = date_applied or ""
         self.contact_name = contact_name or ""
         self.contact_email = contact_email or ""
@@ -184,6 +194,8 @@ class JobApplicationCard(QWidget):
                 "position": self.position,
                 "status": self.status,
                 "location": self.location,
+                "job_source": self.job_source,
+                "job_type": self.job_type,
                 "date_applied": self.date_applied,
                 "contact_name": self.contact_name,
                 "contact_email": self.contact_email,
@@ -266,6 +278,9 @@ class AddApplicationOverlay(QWidget):
         self.status = NoScrollComboBox()
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
+        self.job_type = NoScrollComboBox()
+        self.job_type.setObjectName("formCombo")
+        self.job_type.addItems(JOB_TYPE_OPTIONS)
 
         self.company_website = QLineEdit()
         self.company_website.setObjectName("formInput")
@@ -273,6 +288,9 @@ class AddApplicationOverlay(QWidget):
         self.location = QLineEdit()
         self.location.setObjectName("formInput")
         self.location.setPlaceholderText("e.g., London, UK")
+        self.job_source = QLineEdit()
+        self.job_source.setObjectName("formInput")
+        self.job_source.setPlaceholderText("e.g., LinkedIn")
         self.date_applied = NoScrollDateEdit()
         self.date_applied.setObjectName("formDate")
         self.contact_name = QLineEdit()
@@ -302,10 +320,12 @@ class AddApplicationOverlay(QWidget):
 
         # Create labels with asterisks for required fields
         form.addRow(self._create_label("Company", required=True), self.company)
-        form.addRow(self._create_label("Job Title", required=True), self.position)
+        form.addRow(self._create_label("Job title", required=True), self.position)
         form.addRow(self._create_label("Status", required=True), self.status)
         form.addRow("Company website", self.company_website)
-        form.addRow("Job Location", self.location)
+        form.addRow("Job location", self.location)
+        form.addRow("Job source", self.job_source)
+        form.addRow("Job type", self.job_type)
         form.addRow("Date applied", self.date_applied)
         form.addRow("Contact name", self.contact_name)
         form.addRow("Contact email", self.contact_email)
@@ -384,6 +404,7 @@ class AddApplicationOverlay(QWidget):
         company = self.company.text().strip()
         position = self.position.text().strip()
         status = self.status.currentText().strip()
+        job_type = self.job_type.currentText().strip()
 
         # Validate required fields
         is_valid = True
@@ -409,6 +430,8 @@ class AddApplicationOverlay(QWidget):
             "status": status,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
+            "job_source": self.job_source.text().strip() or None,
+            "job_type": job_type,
             "date_applied": self.date_applied.text().strip() or None,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
@@ -509,10 +532,12 @@ class ViewApplicationOverlay(QWidget):
 
         fields = [
             ("Company", "company"),
-            ("Job Title", "position"),
+            ("Job title", "position"),
             ("Status", "status"),
             ("Company website", "company_website"),
-            ("Job Location", "location"),
+            ("Job location", "location"),
+            ("Job source", "job_source"),
+            ("Job type", "job_type"),
             ("Date applied", "date_applied"),
             ("Contact name", "contact_name"),
             ("Contact email", "contact_email"),
@@ -680,9 +705,17 @@ class EditApplicationOverlay(QWidget):
         current_status = (self.job.get("status") or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
+        self.status = QComboBox()
+        self.status.setObjectName("formCombo")
+        self.status.addItems(JOB_TYPE_OPTIONS)
+        current_status = (self.job.get("job_type") or "").strip()
+        idx = self.status.findText(current_status)
+        self.status.setCurrentIndex(idx if idx >= 0 else 0)
 
         self.location = QLineEdit(self.job.get("location") or "")
         self.location.setObjectName("formInput")
+        self.job_source = QLineEdit(self.job.get("job_source") or "")
+        self.job_source.setObjectName("formInput")
         self.date_applied = QLineEdit(self.job.get("date_applied") or "")
         self.date_applied.setObjectName("formInput")
         self.contact_name = QLineEdit(self.job.get("contact_name") or "")
@@ -707,10 +740,11 @@ class EditApplicationOverlay(QWidget):
         self.notes.setFixedHeight(100)
 
         form.addRow("Company", self.company)
-        form.addRow("Job Title", self.position)
+        form.addRow("Job title", self.position)
         form.addRow("Status", self.status)
         form.addRow("Company website", self.company_website)
-        form.addRow("Job Location", self.location)
+        form.addRow("Job location", self.location)
+        form.addRow("Job source", self.job_source)
         form.addRow("Date applied", self.date_applied)
         form.addRow("Contact name", self.contact_name)
         form.addRow("Contact email", self.contact_email)
@@ -801,6 +835,8 @@ class EditApplicationOverlay(QWidget):
             "position": self.position.text(),
             "status": self.status.currentText(),
             "location": self.location.text(),
+            "job_source": self.job_source.text(),
+            "job_type": self.job_type.text(),
             "date_applied": self.date_applied.text(),
             "contact_name": self.contact_name.text(),
             "contact_email": self.contact_email.text(),
@@ -889,7 +925,6 @@ class TrackerPage(QWidget):
         header_layout.addLayout(title_layout, stretch=1)
 
         self.add_application_button = QPushButton("Add Application")
-        self.add_application_button.setObjectName("addButton")
         self.add_application_button.clicked.connect(self.add_application)
         self.add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -973,19 +1008,6 @@ class TrackerPage(QWidget):
                 border-radius: 2px;
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
-            }}
-            
-            /* ==================== ADD APPLICATION BUTTON ==================== */
-            QPushButton#addButton {{
-                background-color: {button_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }}
-            QPushButton#addButton:hover {{
-                background-color: {hover_bg.name()};
             }}
             
             /* ==================== JOB CARDS ==================== */
@@ -1252,14 +1274,16 @@ class TrackerPage(QWidget):
                 "position": r[3],
                 "status": r[4],
                 "location": r[5],
-                "date_applied": r[6],
-                "contact_name": r[7],
-                "contact_email": r[8],
-                "salary_range": r[9],
-                "job_url": r[10],
-                "job_description": r[11],
-                "notes": r[12],
-                "last_update": r[15],
+                "job_source": r[6],
+                "job_type": r[7],
+                "date_applied": r[8],
+                "contact_name": r[9],
+                "contact_email": r[10],
+                "salary_range": r[11],
+                "job_url": r[12],
+                "job_description": r[13],
+                "notes": r[14],
+                "last_update": r[17],
                 # TODO: PDFs and extracted text are intentionally ignored in the UI.
             })
 

@@ -17,6 +17,8 @@ class JobDatabase:
                 position TEXT NOT NULL,
                 status TEXT NOT NULL,
                 location TEXT,
+                source TEXT,
+                job_type TEXT,
                 date_applied TEXT,
                 contact_name TEXT,
                 contact_email TEXT,
@@ -39,6 +41,8 @@ class JobDatabase:
             status: str,
             company_website: Optional[str] = None,
             location: Optional[str] = None,
+            source: Optional[str] = None,
+            job_type: Optional[str] = None,
             date_applied: Optional[str] = None,
             contact_name: Optional[str] = None,
             contact_email: Optional[str] = None,
@@ -87,6 +91,8 @@ class JobDatabase:
              position: Optional[str] = None,
              status: Optional[str] = None,
              location: Optional[str] = None,
+             source: Optional[str] = None,
+             job_type: Optional[str] = None,
              date_applied: Optional[str] = None,
              contact_name: Optional[str] = None,
              contact_email: Optional[str] = None,
@@ -127,6 +133,12 @@ class JobDatabase:
         if location is not None:
             fields_to_update.append("location = ?")
             values.append(location)
+        if source is not None:
+            fields_to_update.append("source = ?")
+            values.append(source)
+        if job_type is not None:
+            fields_to_update.append("job_type = ?")
+            values.append(job_type)
         if date_applied is not None:
             fields_to_update.append("date_applied = ?")
             values.append(date_applied)
@@ -216,6 +228,7 @@ class JobDatabase:
         """
         self.cursor.execute("""
             SELECT id, company, company_website, position, status, location,
+                   source, job_type, 
                    date_applied, contact_name, contact_email, salary_range,
                    job_url, job_description, notes, cv_text,
                    cover_letter_text, last_update
