@@ -3,7 +3,32 @@ import sys
 import re
 from pathlib import Path
 
+from PyQt6.QtWidgets import (
+    QDateEdit,
+    QComboBox,
+    QAbstractSpinBox,
+)
 from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QDate
+
+class NoScrollDateEdit(QDateEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Set default configuration
+        self.setDisplayFormat("dd/MM/yyyy")
+        self.setCalendarPopup(True)
+        self.setDate(QDate.currentDate())
+        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+
+    def wheelEvent(self, event):
+        # Ignore wheel events
+        event.ignore()
+
+class NoScrollComboBox(QComboBox):
+    def wheelEvent(self, event):
+        # Ignore wheel events
+        event.ignore()
+
 
 # TODO: Remove resource_path, first ensure it won't be needed anymore
 def resource_path(relative_path: str) -> str:
@@ -57,7 +82,7 @@ def get_app_paths_for_user(app_name: str, user_id: str) -> dict[str, Path]:
 
 # TODO: use this to create all icons
 # I can safely bundle icons from:
-# Tabler Icons (MIT)
+# Tabler Icons (MIT) https://tabler.io/icons
 # Feather Icons (MIT)
 # Material Symbols (Outlined)
 

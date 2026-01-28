@@ -206,7 +206,7 @@ def main():
     
     user_paths = get_app_paths_for_user("JobVaultLibre", user_id="Default")
     window = MainWindow(user_paths)
-    window.show()
+    window.showMaximized()
     app.exec()
 
 if __name__ == "__main__":

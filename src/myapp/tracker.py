@@ -1,3 +1,5 @@
+from importlib import resources
+
 from PyQt6.QtWidgets import (
     QWidget,
     QLabel,
@@ -20,6 +22,7 @@ from PyQt6.QtCore import Qt, QStringListModel, QEvent
 from PyQt6.QtGui import QIcon, QPalette
 
 from myapp.database import JobDatabase
+from myapp.utils import NoScrollDateEdit, NoScrollComboBox
 
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")
@@ -245,6 +248,9 @@ class AddApplicationOverlay(QWidget):
         hover_bg = button_bg.lighter(120)
         
         # Build stylesheet using system colors
+        with resources.as_file(resources.files("myapp.resources.icons").joinpath("calendar.png")) as path:
+            CALENDAR_ICON_PATH = str(path)
+            CALENDAR_ICON_PATH = CALENDAR_ICON_PATH.replace("\\", "/")
         self.setStyleSheet(f"""
             QWidget#overlay {{
                 background-color: rgba(0, 0, 0, 180);
@@ -257,15 +263,24 @@ class AddApplicationOverlay(QWidget):
             QLabel {{
                 color: {text_color.name()};
             }}
-            QLineEdit, QTextEdit {{
+            QLineEdit, QTextEdit, QDateEdit {{
                 background-color: {base_bg.name()};
                 color: {text_color.name()};
                 border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
             }}
-            QLineEdit:focus, QTextEdit:focus {{
+            QLineEdit:focus, QTextEdit:focus, QDateEdit:focus {{
                 border: 1px solid {highlight.name()};
+            }}
+            QDateEdit::down-arrow {{
+                image: url("{CALENDAR_ICON_PATH}");
+                width: 16px;
+                height: 16px;
+            }}
+            QDateEdit::drop-down {{
+                border: none;
+                padding-right: 6px;
             }}
             QComboBox {{
                 background-color: {base_bg.name()};
@@ -391,15 +406,14 @@ class AddApplicationOverlay(QWidget):
         self.position = QLineEdit()
         self.position.setPlaceholderText("e.g., Software Engineer")
 
-        self.status = QComboBox()
+        self.status = NoScrollComboBox()
         self.status.addItems(STATUS_OPTIONS)
 
         self.company_website = QLineEdit()
         self.company_website.setPlaceholderText("https://...")
         self.location = QLineEdit()
         self.location.setPlaceholderText("e.g., London, UK")
-        self.date_applied = QLineEdit()
-        self.date_applied.setPlaceholderText("YYYY-MM-DD")
+        self.date_applied = NoScrollDateEdit()
         self.contact_name = QLineEdit()
         self.contact_name.setPlaceholderText("Recruiter name")
         self.contact_email = QLineEdit()
@@ -418,10 +432,10 @@ class AddApplicationOverlay(QWidget):
 
         # Create labels with asterisks for required fields
         form.addRow(self._create_label("Company", required=True), self.company)
-        form.addRow(self._create_label("Position", required=True), self.position)
+        form.addRow(self._create_label("Job Title", required=True), self.position)
         form.addRow(self._create_label("Status", required=True), self.status)
         form.addRow("Company website", self.company_website)
-        form.addRow("Location", self.location)
+        form.addRow("Job Location", self.location)
         form.addRow("Date applied", self.date_applied)
         form.addRow("Contact name", self.contact_name)
         form.addRow("Contact email", self.contact_email)
@@ -723,10 +737,10 @@ class ViewApplicationOverlay(QWidget):
 
         fields = [
             ("Company", "company"),
-            ("Position", "position"),
+            ("Job Title", "position"),
             ("Status", "status"),
             ("Company website", "company_website"),
-            ("Location", "location"),
+            ("Job Location", "location"),
             ("Date applied", "date_applied"),
             ("Contact name", "contact_name"),
             ("Contact email", "contact_email"),
@@ -1000,10 +1014,10 @@ class EditApplicationOverlay(QWidget):
         self.notes.setFixedHeight(100)
 
         form.addRow("Company", self.company)
-        form.addRow("Position", self.position)
+        form.addRow("Job Title", self.position)
         form.addRow("Status", self.status)
         form.addRow("Company website", self.company_website)
-        form.addRow("Location", self.location)
+        form.addRow("Job Location", self.location)
         form.addRow("Date applied", self.date_applied)
         form.addRow("Contact name", self.contact_name)
         form.addRow("Contact email", self.contact_email)
