@@ -14,8 +14,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QDate
 
-class ConfigurationFormatError(ValueError):
-    pass
+from myapp.exceptions import ConfigurationFormatError
 
 class NoScrollDateEdit(QDateEdit):
     def __init__(self, parent=None, date=None):

@@ -1,9 +1,12 @@
-
+import traceback
+import sys
 from importlib import resources
 
 from PyQt6.QtWidgets import (
     QMainWindow,
     QApplication,
+    QDialog,
+    QTextEdit,
     QWidget,
     QLabel,
     QPushButton,
@@ -14,12 +17,127 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap, QGuiApplication, QFont
 
 from myapp.database import JobDatabase
 from myapp.tracker import TrackerPage
 from myapp.cv_config import ProfilePage
 from myapp.utils import get_app_paths_for_user
+from myapp.exceptions import AppError
+
+class FatalErrorDialog(QDialog):
+    """
+    Modal, application-blocking dialog that presents a fatal error/traceback.
+    Provides Copy and Quit.
+    """
+    DEFAULT_TROUBLESHOOTING = [
+        "Restart the application",
+        "Update to the latest version if available",
+        "Check if your disk has sufficient space"
+    ]
+
+    def __init__(
+        self, 
+        error_text: str, 
+        exception: Exception | None = None,
+        parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self._error_text = error_text
+
+        troubleshooting_steps = None
+        if isinstance(exception, AppError) and exception.troubleshooting_steps:
+            troubleshooting_steps = exception.troubleshooting_steps
+        else:
+            troubleshooting_steps = self.DEFAULT_TROUBLESHOOTING
+
+        self.setWindowTitle("Fatal error")
+        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+
+        # Keep it on top and remove the help button.
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+
+        layout = QVBoxLayout(self)
+
+        title = QLabel("The application encountered a fatal error and cannot continue.")
+        title.setWordWrap(True)
+        title_font = QFont()
+        title_font.setPointSize(title_font.pointSize() + 2)
+        title_font.setBold(True)
+        title.setFont(title_font)
+
+        # Troubleshooting section
+        troubleshoot_label = QLabel("<b>Before reporting, please try:</b>")
+        troubleshoot_label.setWordWrap(True)
+        
+        troubleshoot_steps = QLabel(
+            "<br>".join(f"• {step}" for step in troubleshooting_steps)
+        )
+        troubleshoot_steps.setWordWrap(True)
+        troubleshoot_steps.setTextFormat(Qt.TextFormat.RichText)
+        troubleshoot_steps.setContentsMargins(10, 5, 10, 5)
+
+        hint = QLabel("If the problem persists, copy the error details below and report it.")
+        hint.setWordWrap(True)
+
+        self.text = QTextEdit()
+        self.text.setReadOnly(True)
+        self.text.setPlainText(self._error_text)
+        self.text.setMinimumSize(760, 420)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+
+        self.copy_btn = QPushButton("Copy Error Details")
+        self.quit_btn = QPushButton("Quit")
+
+        self.copy_btn.clicked.connect(self._copy)
+        self.quit_btn.clicked.connect(self.accept)
+
+        btn_row.addWidget(self.copy_btn)
+        btn_row.addWidget(self.quit_btn)
+
+        layout.addWidget(title)
+        layout.addSpacing(10)
+        layout.addWidget(troubleshoot_label)
+        layout.addWidget(troubleshoot_steps)
+        layout.addSpacing(10)
+        layout.addWidget(hint)
+        layout.addSpacing(10)
+        layout.addWidget(self.text)
+        layout.addLayout(btn_row)
+        self.copy_btn.setDefault(True)
+        self.copy_btn.setFocus()
+
+    def _copy(self) -> None:
+        cb = QGuiApplication.clipboard()
+        if cb is not None:
+            cb.setText(self._error_text)
+
+_fatal_shown = False
+def install_exception_hook() -> None:
+    def excepthook(exc_type, exc, tb):
+        global _fatal_shown
+        if _fatal_shown:
+            return
+        _fatal_shown = True
+
+        app = QApplication.instance() or QApplication([])
+        err_text = "".join(traceback.format_exception(exc_type, exc, tb))
+        
+        print(err_text, file=sys.stderr)
+        parent = app.activeWindow()
+        _fatal_dialog = FatalErrorDialog(err_text, exception=exc, parent=parent)
+        _fatal_dialog.exec()
+        app.quit()
+
+    sys.excepthook = excepthook
 
 class MainWindow(QMainWindow):
 
@@ -199,7 +317,7 @@ class MainWindow(QMainWindow):
         btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         return btn
 
-def main():
+def run_app() -> None:
     app = QApplication([])
     with resources.as_file(resources.files("myapp.assets").joinpath("JV_logo.png")) as path:
         app.setWindowIcon(QIcon(str(path)))
@@ -207,7 +325,17 @@ def main():
     user_paths = get_app_paths_for_user("JobVaultLibre", user_id="Default")
     window = MainWindow(user_paths)
     window.showMaximized()
+    install_exception_hook()
     app.exec()
+
+def main() -> None:
+    try:
+        run_app()
+    except Exception as e:
+        err_text = "".join(traceback.format_exception(*sys.exc_info()))
+        print(err_text, file=sys.stderr)
+        dlg = FatalErrorDialog(err_text, exception=e)
+        dlg.exec()
 
 if __name__ == "__main__":
     main()
