@@ -40,7 +40,7 @@ from myapp.utils import (
 
 STATUS_COLORS = {
     "Enabled": "#10B981",
-    "Disable": "#EF4444",
+    "Hidden": "#777777",
 }
 
 EDIT_ICON = QIcon.fromTheme("document-edit")
@@ -127,6 +127,7 @@ class SectionSettingsOverlay(QWidget):
 
         self.section_name = (self.section_def.get("name") or "").strip()
         self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
+        self.select_multiple = bool(self.section_def.get("select_multiple", True))
 
         self._item_widgets: List["_ItemEditor"] = []
 
@@ -188,6 +189,11 @@ class SectionSettingsOverlay(QWidget):
                 border: 1px solid %(hl)s;
             }
             QPushButton#saveBtn:hover { background-color: %(hl2)s; }
+            QPushButton#addBtn {
+                background-color: %(hl)s;
+                border: 1px solid %(hl)s;
+            }
+            QPushButton#addBtn:hover { background-color: %(hl2)s; }
             QPushButton#closeBtn {
                 background-color: transparent;
                 border: none;
@@ -280,10 +286,12 @@ class SectionSettingsOverlay(QWidget):
         if self.allow_multiple:
             add_item_row = QHBoxLayout()
             add_item_row.addStretch()
-            self.add_item_btn = QPushButton("Add %s" % (self._item_label_singular() or "item"))
+            self.add_item_btn = QPushButton("＋ Add %s" % (self._item_label_singular() or "item"))
+            self.add_item_btn.setObjectName("addBtn")
             self.add_item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self.add_item_btn.clicked.connect(self._add_item_clicked)
             add_item_row.addWidget(self.add_item_btn)
+            add_item_row.addStretch()
             self.scroll_layout.addLayout(add_item_row)
 
         self.scroll_layout.addStretch(1)
@@ -317,6 +325,9 @@ class SectionSettingsOverlay(QWidget):
 
         # Build initial items from section_cfg
         self._load_initial_items()
+
+        if not self.select_multiple:
+            self._setup_exclusive_toggles()
 
     # ---------- UI building ----------
 
@@ -380,10 +391,10 @@ class SectionSettingsOverlay(QWidget):
           { field_name: {"value": ..., "selected_default": false} } OR
           { field_name: [ {"value": ..., "selected_default": false}, ... ] } for multiple fields.
         """
-        out: Dict[str, Any] = {}
+        out: Dict[str, Any] = {"selected_default": False}
         for fdef in self._fields_def():
             fname = fdef["name"]
-            is_multi = bool(fdef.get("multiple", False))
+            is_multi = bool(fdef.get("allow_multiple", False))
             base = _field_default_value(fdef)
 
             if is_multi:
@@ -403,11 +414,17 @@ class SectionSettingsOverlay(QWidget):
             section_fields=self._fields_def(),
             payload=dict(payload or {}),
             palette=self.palette(),
-            allow_remove=self.allow_multiple,
+            allow_multiple=self.allow_multiple,
             on_remove=lambda ed=None: self._remove_item_editor(editor),
         )
         self._item_widgets.append(editor)
         self.items_container.addWidget(editor)
+        
+        # Connect exclusive toggle behavior if needed
+        if not self.select_multiple and self.allow_multiple and hasattr(editor, 'selected_toggle'):
+            editor.selected_toggle.clicked.connect(
+                lambda checked, current_editor=editor: self._handle_exclusive_toggle(current_editor, checked)
+            )
 
         self._renumber_item_titles()
 
@@ -423,6 +440,27 @@ class SectionSettingsOverlay(QWidget):
         for i, ed in enumerate(self._item_widgets, start=1):
             ed.set_title("%s %d" % (label, i))
 
+    def _setup_exclusive_toggles(self) -> None:
+        """Make toggles mutually exclusive when select_multiple is False."""
+        if self.select_multiple or not self.allow_multiple:
+            return
+        
+        for editor in self._item_widgets:
+            if hasattr(editor, 'selected_toggle'):
+                editor.selected_toggle.clicked.connect(
+                    lambda checked, current_editor=editor: self._handle_exclusive_toggle(current_editor, checked)
+                )
+
+    def _handle_exclusive_toggle(self, clicked_editor: "_ItemEditor", checked: bool) -> None:
+        """When one toggle is checked, uncheck all others."""
+        if not checked or self.select_multiple:
+            return
+        
+        for editor in self._item_widgets:
+            if editor is not clicked_editor and hasattr(editor, 'selected_toggle'):
+                editor.selected_toggle._user_checked = True
+                editor.selected_toggle.setChecked(False)
+                
     # ---------- Save / Close behaviour ----------
 
     def showEvent(self, event):
@@ -492,84 +530,98 @@ class _ItemEditor(QFrame):
         section_fields: List[Dict[str, Any]],
         payload: Dict[str, Any],
         palette: QPalette,
-        allow_remove: bool,
+        allow_multiple: bool,
         on_remove: Callable[[], None],
     ):
         super().__init__()
-
         self.section_fields = section_fields
         self.payload = payload
-        self.allow_remove = allow_remove
+        self.allow_multiple = allow_multiple
         self.on_remove = on_remove
-
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setObjectName("itemEditorFrame")
-
         self._field_editors: Dict[str, Union["_SingleFieldEditor", "_MultiFieldEditor"]] = {}
-
+        
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(10)
 
-        # header
-        header = QHBoxLayout()
-        self.title_lbl = QLabel("Item")
-        self.title_lbl.setStyleSheet("font-weight: 600; font-size: 14px;")
-        header.addWidget(self.title_lbl)
+        # GroupBox with title
+        self.group_box = QGroupBox("Item")
+        
+        # Make title bold via stylesheet
+        self.group_box.setStyleSheet("QGroupBox { font-weight: bold; }")
+        
+        group_layout = QVBoxLayout(self.group_box)
+        group_layout.setContentsMargins(12, 10, 12, 12)
+        group_layout.setSpacing(12)
+        
+        
+        # Remove button at the top right (if allowed)
+        if allow_multiple:
+            header = QHBoxLayout()
+        header.addStretch()
         header.addStretch()
 
-        if allow_remove:
+        if allow_multiple:
+            header.addStretch()
+
+        if allow_multiple:
             rm = QPushButton("Remove")
             rm.setCursor(Qt.CursorShape.PointingHandCursor)
             rm.clicked.connect(self.on_remove)
             rm.setFixedHeight(30)
+            self.selected_toggle = QToggle()
+            included = self.payload.get("selected_default")
+            self.selected_toggle.setChecked(False if included is None else included)
             header.addWidget(rm)
-
-        outer.addLayout(header)
-
-        # body
-        body = QGroupBox()
-        body.setTitle("")
-        body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(12, 10, 12, 12)
-        body_layout.setSpacing(12)
-
+            header.addWidget(QLabel("Preselected in CV builder"))
+            header.addWidget(self.selected_toggle)
+            group_layout.addLayout(header)
+        
+        # Form fields
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
-
+        
         for fdef in self.section_fields:
             fname = fdef["name"]
             flabel = fdef.get("label") or fname
-            is_multi = bool(fdef.get("multiple", False))
-
+            is_multi = bool(fdef.get("allow_multiple", False))
+            show_name = bool(fdef.get("show_name", True))
+            allow_hide_in_cv = bool(fdef.get("allow_hide_in_cv", True))
             initial = self.payload.get(fname)
+            
             if is_multi:
                 if not isinstance(initial, list):
                     # if stored as single, adapt
                     v, s = _unwrap_wrapped(initial)
                     initial = [_wrap_value(v, s)]
-                editor = _MultiFieldEditor(fdef=fdef, initial_list=initial)
+                editor = _MultiFieldEditor(fdef=fdef, initial_list=initial, allow_hide_in_cv=allow_hide_in_cv)
             else:
                 v, s = _unwrap_wrapped(initial)
                 if initial is None:
                     v = _field_default_value(fdef)
                     s = False
-                editor = _SingleFieldEditor(fdef=fdef, initial_value=v, initial_selected=s)
-
+                editor = _SingleFieldEditor(fdef=fdef, initial_value=v, initial_selected=s, allow_hide_in_cv=allow_hide_in_cv)
+            
             self._field_editors[fname] = editor
-            form.addRow(flabel, editor)
-
-        body_layout.addLayout(form)
-        outer.addWidget(body)
+            if show_name:
+                form.addRow(flabel, editor)
+            else:
+                form.addRow(editor)
+        
+        group_layout.addLayout(form)
+        outer.addWidget(self.group_box)
 
     def set_title(self, title: str) -> None:
-        self.title_lbl.setText(title or "Item")
+        self.group_box.setTitle(title or "Item")
 
     def to_payload(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
+        out["selected_default"] = self.selected_toggle.isChecked()
         for fname, editor in self._field_editors.items():
             out[fname] = editor.to_payload()
         return out
@@ -577,12 +629,13 @@ class _ItemEditor(QFrame):
 
 class _SingleFieldEditor(QWidget):
     """
-    Renders one field editor + 'Selected by Default' checkbox.
+    Renders one field editor + 'Show field in CV Builder' checkbox.
     """
 
-    def __init__(self, fdef: Dict[str, Any], initial_value: Any, initial_selected: bool):
+    def __init__(self, fdef: Dict[str, Any], initial_value: Any, initial_selected: bool, allow_hide_in_cv: bool):
         super().__init__()
         self.fdef = fdef
+        self.allow_hide_in_cv = allow_hide_in_cv
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -595,14 +648,19 @@ class _SingleFieldEditor(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.addStretch()
 
-        self.selected_cb = QCheckBox("Selected by Default")
-        self.selected_cb.setChecked(bool(initial_selected))
-        row.addWidget(self.selected_cb)
+        if self.allow_hide_in_cv:
+            self.selected_cb = QCheckBox("Show field in CV Builder")
+            self.selected_cb.setChecked(bool(initial_selected))
+            row.addWidget(self.selected_cb)
 
         layout.addLayout(row)
 
     def to_payload(self) -> Dict[str, Any]:
-        return _wrap_value(_read_value_widget(self.fdef, self.editor), self.selected_cb.isChecked())
+        if self.allow_hide_in_cv:
+            return _wrap_value(_read_value_widget(self.fdef, self.editor), self.selected_cb.isChecked())
+        else:
+            return _wrap_value(_read_value_widget(self.fdef, self.editor), True)
+
 
 
 class _MultiFieldEditor(QWidget):
@@ -614,7 +672,7 @@ class _MultiFieldEditor(QWidget):
     and an 'Add another' button at the end.
     """
 
-    def __init__(self, fdef: Dict[str, Any], initial_list: List[Any]):
+    def __init__(self, fdef: Dict[str, Any], initial_list: List[Any], allow_hide_in_cv: bool):
         super().__init__()
         self.fdef = fdef
         self.rows: List[Tuple[QWidget, QCheckBox, Optional[QPushButton]]] = []
@@ -952,11 +1010,10 @@ class SectionCard(QWidget):
             count_text = f"{count} {plural_label}"
 
         # Status text
-        match status:
-            case "Disabled":
-                status_text = "Hidden"
-            case _:
-                status_text = "Enabled"
+        if status:
+            status_text = "Enabled"
+        else:
+            status_text = "Hidden"
 
         status_badge_color = STATUS_COLORS.get(status_text, "#6B7280")
 

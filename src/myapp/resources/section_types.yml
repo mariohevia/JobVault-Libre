@@ -26,8 +26,10 @@ version: 1
 #   - If type is 'string', 'multiline', 'enum', 'number' an additional 'default_value' may be used
 # 
 # Optional field properties:
-#   - allow_multiple: whether this field can have multiple values
-#   - select_multiple: whether multiple values can be selected in the CV builder
+#   - allow_multiple (default false): whether this field can have multiple values
+#   - select_multiple (default true): whether multiple values can be selected in the CV builder
+#   - show_name (default true): whether the label will be shown in the CV config
+#   - allow_hide_in_cv (default false): 
 
 sections:
   - name: summary
@@ -45,7 +47,9 @@ sections:
       - name: summary
         label: "Summary"
         type: multiline
-        allow_multiple: true
+        show_name: false
+        allow_hide_in_cv: false
+        allow_multiple: false
 
   - name: experience
     default_title: "Experience"
@@ -70,6 +74,7 @@ sections:
       - name: role
         label: "Job title"
         type: string
+        allow_hide_in_cv: false
 
       - name: location
         label: "Location"
