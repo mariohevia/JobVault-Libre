@@ -346,7 +346,7 @@ class SectionSettingsOverlay(QWidget):
         current_row = 0
         current_col = 0
         for field in self.section_def.get("fields", []):
-            field_label = QLabel(field["name"].title())
+            field_label = QLabel(field["label"].title())
             field_toggle = QToggle()
             included = field_visibility.get(field["name"], True)
             field_toggle.setChecked(included)
