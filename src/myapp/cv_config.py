@@ -329,13 +329,15 @@ class SectionSettingsOverlay(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Include in CV builder"))
         self.include_toggle = QToggle()
-        self.include_toggle.setChecked(True)
+        included = self.section_cfg.get("enabled")
+        self.include_toggle.setChecked(True if included is None else included)
         row.addWidget(self.include_toggle)
         row.addStretch()
 
         row.addWidget(QLabel("Preselected in CV builder"))
         self.default_toggle = QToggle()
-        self.default_toggle.setChecked(True)
+        preselected = self.section_cfg.get("preselected")
+        self.default_toggle.setChecked(True if preselected is None else preselected)
         row.addWidget(self.default_toggle)
         lay.addLayout(row)
 
