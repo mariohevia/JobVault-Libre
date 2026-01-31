@@ -15,3 +15,12 @@ Key objectives of the project:
 - Remain lightweight and suitable for users who prefer offline software
 
 JobVault Libre is intended for job seekers who value privacy, users who prefer offline desktop applications, and anyone who wishes to maintain their job-search information in a secure and transparent way.
+
+### Dependencies
+
+
+### Third-Party Components
+
+This project includes Qtoggle, originally authored by Luan Dias - https://github.com/luandiasrj, licensed under the GNU General Public License v3.
+
+Source:  https://github.com/luandiasrj/QToggle_-_Advanced_QCheckbox_for_PyQT6

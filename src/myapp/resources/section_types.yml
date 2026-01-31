@@ -29,7 +29,8 @@ version: 1
 #   - allow_multiple (default false): whether this field can have multiple values
 #   - select_multiple (default true): whether multiple values can be selected in the CV builder
 #   - show_name (default true): whether the label will be shown in the CV config
-#   - allow_hide_in_cv (default false): 
+#   - allow_hide_in_cv (default false): whether the field can be hidden with the UI from the CV builder
+#   - layout_width (default 'full'): one of ['full', 'half']; if allow_multiple is true this is not considered and 'full' is used
 
 sections:
   - name: summary
@@ -54,7 +55,7 @@ sections:
   - name: experience
     default_title: "Experience"
     description: "Jobs, roles, and internships."
-    icon: "briefcase"          # purely for UI
+    icon: "briefcase"
     allow_multiple: true
     select_multiple: true
 
@@ -63,45 +64,51 @@ sections:
       plural: "Positions"
 
     fields:
+      - name: role
+        label: "Job title"
+        type: string
+        allow_hide_in_cv: false
+        layout_width: "half"
+
+      - name: employment_type
+        label: "Employment type"
+        type: enum
+        options: ["Full time", "Part time", "Contract", "Internship", "Hide"]
+        layout_width: "half"
+
       - name: company
         label: "Company"
         type: string
+        layout_width: "half"
+
+      - name: location
+        label: "Location"
+        type: string
+        layout_width: "half"
+
+      - name: start_date
+        label: "Start date"
+        type: year_month
+        layout_width: "half"
+
+      - name: end_date
+        label: "End date"
+        type: year_month
+        layout_width: "half"
 
       - name: company_description
         label: "Company Description"
         type: string
 
-      - name: role
-        label: "Job title"
-        type: string
-        allow_hide_in_cv: false
-
-      - name: location
-        label: "Location"
-        type: string
-
-      - name: employment_type
-        label: "Employment type"
-        type: enum
-        options: [full_time, part_time, contract, internship, hide]
-
-      - name: start_date
-        label: "Start date"
-        type: year_month
-
-      - name: end_date
-        label: "End date"
-        type: year_month
-
       - name: summary
-        label: "Responsibilities"
+        label: "Job Description / Responsibilities"
         type: multiline
         allow_multiple: true
         select_multiple: false
 
       - name: achievements
-        label: "Achievements"
-        type: multiline
+        label: "Achievement (bullet point)"
+        type: string
         allow_multiple: true
         select_multiple: true
 

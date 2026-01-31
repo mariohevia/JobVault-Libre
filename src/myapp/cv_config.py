@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QLabel,
     QScrollArea,
     QSizePolicy,
@@ -21,9 +22,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QTextEdit,
-    QComboBox,
     QGroupBox,
-    QCheckBox,
     QMessageBox,
 )
 
@@ -34,6 +33,8 @@ from myapp.utils import (
     save_full_config,
     today_year_month,
 )
+
+from myapp.utils import NoScrollComboBox
 
 # TODO: Do a fail safe if the yml files are wrong.
 # TODO: Decide whether "Profile" is an appropriate name
@@ -81,22 +82,6 @@ def _field_default_value(field_def: Dict[str, Any]) -> Any:
         return out
 
     return ""
-
-
-def _wrap_value(value: Any, selected_default: bool) -> Dict[str, Any]:
-    return {"value": value, "selected_default": bool(selected_default)}
-
-
-def _unwrap_wrapped(obj: Any) -> Tuple[Any, bool]:
-    """
-    Accepts either:
-      - {"value": X, "selected_default": bool}
-      - raw X
-    Returns (value, selected_default)
-    """
-    if isinstance(obj, dict) and "value" in obj:
-        return obj.get("value"), bool(obj.get("selected_default", False))
-    return obj, False
 
 
 class SectionSettingsOverlay(QWidget):
@@ -332,26 +317,53 @@ class SectionSettingsOverlay(QWidget):
     # ---------- UI building ----------
 
     def _build_section_visibility_block(self) -> QGroupBox:
-        gb = QGroupBox("Section Visibility && Defaults")
+        gb = QGroupBox("Section Visibility")
+        gb.setStyleSheet("QGroupBox { font-weight: bold; }")
         lay = QVBoxLayout(gb)
         lay.setContentsMargins(12, 10, 12, 12)
         lay.setSpacing(10)
 
         row = QHBoxLayout()
-        row.addWidget(QLabel("Include in CV builder"))
+        row.addWidget(QLabel("Include section in CV builder"))
         self.include_toggle = QToggle()
         included = self.section_cfg.get("enabled")
         self.include_toggle.setChecked(True if included is None else included)
         row.addWidget(self.include_toggle)
         row.addStretch()
 
-        row.addWidget(QLabel("Preselected in CV builder"))
+        row.addWidget(QLabel("Preselected section in CV builder"))
         self.default_toggle = QToggle()
         preselected = self.section_cfg.get("preselected")
         self.default_toggle.setChecked(True if preselected is None else preselected)
         row.addWidget(self.default_toggle)
         lay.addLayout(row)
 
+        gb_child = QGroupBox("Field Visibility")
+        lay_child = QGridLayout(gb_child)
+
+        self.field_toggles = {}
+        field_visibility = self.section_cfg.get("field_visibility", {})
+        current_row = 0
+        current_col = 0
+        for field in self.section_def.get("fields", []):
+            field_label = QLabel(field["name"].title())
+            field_toggle = QToggle()
+            included = field_visibility.get(field["name"], True)
+            field_toggle.setChecked(included)
+            lay_child.addWidget(field_label, current_row, current_col, 1, 1, Qt.AlignmentFlag.AlignRight)
+            lay_child.addWidget(field_toggle, current_row, current_col + 1, 1, 1, Qt.AlignmentFlag.AlignLeft)
+            self.field_toggles[field["name"]] = field_toggle
+            current_col += 2
+            if current_col >= 6:
+                current_row += 1
+                current_col = 0
+                
+        if current_row == 0:
+            while current_col <= 6:
+                lay_child.addWidget(QWidget(), 0, current_col, 1, 1)
+                current_col += 1
+            
+        lay.addWidget(gb_child)
         return gb
 
     def _item_label_singular(self) -> str:
@@ -388,19 +400,19 @@ class SectionSettingsOverlay(QWidget):
     def _make_default_item_payload(self) -> Dict[str, Any]:
         """
         Returns an item payload shaped as:
-          { field_name: {"value": ..., "selected_default": false} } OR
-          { field_name: [ {"value": ..., "selected_default": false}, ... ] } for multiple fields.
+          { field_name: "value" } OR
+          { field_name: ["value", ... ] } for multiple fields.
         """
-        out: Dict[str, Any] = {"selected_default": False}
+        out: Dict[str, Any] = {}
         for fdef in self._fields_def():
             fname = fdef["name"]
             is_multi = bool(fdef.get("allow_multiple", False))
             base = _field_default_value(fdef)
 
             if is_multi:
-                out[fname] = [_wrap_value(base, False)]
+                out[fname] = [base]
             else:
-                out[fname] = _wrap_value(base, False)
+                out[fname] = base
         return out
 
     # ---------- Item editors ----------
@@ -499,6 +511,7 @@ class SectionSettingsOverlay(QWidget):
             "enabled": self.include_toggle.isChecked(),
             "preselected": self.default_toggle.isChecked(),
             "items": [ed.to_payload() for ed in self._item_widgets],
+            "field_visibility": {name: t.isChecked() for name, t in self.field_toggles.items()},
         }
 
         # If allow_multiple is false, keep only one item
@@ -580,38 +593,41 @@ class _ItemEditor(QFrame):
             group_layout.addLayout(header)
         
         # Form fields
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        form = QGridLayout()
         form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(10)
+        form.setVerticalSpacing(3)
         
+        current_row = 0
+        current_col = 0
         for fdef in self.section_fields:
             fname = fdef["name"]
             flabel = fdef.get("label") or fname
             is_multi = bool(fdef.get("allow_multiple", False))
             show_name = bool(fdef.get("show_name", True))
-            allow_hide_in_cv = bool(fdef.get("allow_hide_in_cv", True))
+            layout_width = str(fdef.get("layout_width", 'full'))
             initial = self.payload.get(fname)
             
             if is_multi:
                 if not isinstance(initial, list):
-                    # if stored as single, adapt
-                    v, s = _unwrap_wrapped(initial)
-                    initial = [_wrap_value(v, s)]
-                editor = _MultiFieldEditor(fdef=fdef, initial_list=initial, allow_hide_in_cv=allow_hide_in_cv)
+                    initial = [initial]
+                editor = _MultiFieldEditor(fdef=fdef, initial_list=initial, show_name=show_name, flabel=flabel)
             else:
-                v, s = _unwrap_wrapped(initial)
                 if initial is None:
-                    v = _field_default_value(fdef)
-                    s = False
-                editor = _SingleFieldEditor(fdef=fdef, initial_value=v, initial_selected=s, allow_hide_in_cv=allow_hide_in_cv)
-            
+                    initial = _field_default_value(fdef)
+                editor = _SingleFieldEditor(fdef=fdef, initial_value=initial, show_name=show_name, flabel=flabel)
             self._field_editors[fname] = editor
-            if show_name:
-                form.addRow(flabel, editor)
-            else:
-                form.addRow(editor)
+            if layout_width == 'full' or is_multi:
+                if current_col != 0:
+                    current_row += 1
+                    current_col = 0
+                form.addWidget(editor, current_row, 0, 1, 2)
+                current_row += 1
+            elif layout_width == "half":
+                form.addWidget(editor, current_row, current_col)
+                current_col += 1
+                if current_col >= 2:
+                    current_row += 1
+                    current_col = 0
         
         group_layout.addLayout(form)
         outer.addWidget(self.group_box)
@@ -632,34 +648,29 @@ class _SingleFieldEditor(QWidget):
     Renders one field editor + 'Show field in CV Builder' checkbox.
     """
 
-    def __init__(self, fdef: Dict[str, Any], initial_value: Any, initial_selected: bool, allow_hide_in_cv: bool):
+    def __init__(self, fdef: Dict[str, Any], initial_value: Any, show_name: bool, flabel: str):
         super().__init__()
         self.fdef = fdef
-        self.allow_hide_in_cv = allow_hide_in_cv
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
         self.editor = _build_value_widget(fdef, initial_value)
-        layout.addWidget(self.editor)
 
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
+        if show_name:
+            label = QLabel(flabel)
+            row.addWidget(label)
+
         row.addStretch()
 
-        if self.allow_hide_in_cv:
-            self.selected_cb = QCheckBox("Show field in CV Builder")
-            self.selected_cb.setChecked(bool(initial_selected))
-            row.addWidget(self.selected_cb)
-
         layout.addLayout(row)
+        layout.addWidget(self.editor)
 
     def to_payload(self) -> Dict[str, Any]:
-        if self.allow_hide_in_cv:
-            return _wrap_value(_read_value_widget(self.fdef, self.editor), self.selected_cb.isChecked())
-        else:
-            return _wrap_value(_read_value_widget(self.fdef, self.editor), True)
+        return _read_value_widget(self.fdef, self.editor)
 
 
 
@@ -672,10 +683,10 @@ class _MultiFieldEditor(QWidget):
     and an 'Add another' button at the end.
     """
 
-    def __init__(self, fdef: Dict[str, Any], initial_list: List[Any], allow_hide_in_cv: bool):
+    def __init__(self, fdef: Dict[str, Any], initial_list: List[Any], show_name: bool, flabel: str):
         super().__init__()
         self.fdef = fdef
-        self.rows: List[Tuple[QWidget, QCheckBox, Optional[QPushButton]]] = []
+        self.rows: List[Tuple[QWidget, Optional[QPushButton]]] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -687,40 +698,34 @@ class _MultiFieldEditor(QWidget):
         outer.addLayout(self.rows_container)
 
         for entry in (initial_list or []):
-            v, s = _unwrap_wrapped(entry)
             if entry is None:
-                v = _field_default_value(fdef)
-                s = False
-            self._add_row(value=v, selected=bool(s))
+                entry = _field_default_value(fdef)
+            self._add_row(value=entry, flabel=flabel)
 
         # ensure at least one
         if not self.rows:
-            self._add_row(value=_field_default_value(fdef), selected=False)
+            self._add_row(value=_field_default_value(fdef), flabel=flabel)
 
         add_row = QHBoxLayout()
         add_row.addStretch()
         add_btn = QPushButton("Add another")
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.clicked.connect(lambda: self._add_row(value=_field_default_value(self.fdef), selected=False))
+        add_btn.clicked.connect(lambda: self._add_row(value=_field_default_value(self.fdef), flabel=flabel))
         add_btn.setFixedHeight(30)
         add_row.addWidget(add_btn)
         outer.addLayout(add_row)
 
-    def _add_row(self, value: Any, selected: bool) -> None:
+    def _add_row(self, value: Any, flabel: str) -> None:
         row_wrap = QWidget()
         row_l = QVBoxLayout(row_wrap)
         row_l.setContentsMargins(0, 0, 0, 0)
         row_l.setSpacing(6)
 
-        editor = _build_value_widget(self.fdef, value)
-        row_l.addWidget(editor)
-
         controls = QHBoxLayout()
-        controls.addStretch()
 
-        selected_cb = QCheckBox("Selected by Default")
-        selected_cb.setChecked(bool(selected))
-        controls.addWidget(selected_cb)
+        label = QLabel(flabel)
+        controls.addWidget(label)
+        controls.addStretch()
 
         remove_btn: Optional[QPushButton] = None
         if True:
@@ -731,8 +736,11 @@ class _MultiFieldEditor(QWidget):
 
         row_l.addLayout(controls)
 
+        editor = _build_value_widget(self.fdef, value)
+        row_l.addWidget(editor)
+
         self.rows_container.addWidget(row_wrap)
-        self.rows.append((editor, selected_cb, remove_btn))
+        self.rows.append((editor, remove_btn))
 
         if remove_btn is not None:
             remove_btn.clicked.connect(lambda: self._remove_row(row_wrap))
@@ -744,13 +752,13 @@ class _MultiFieldEditor(QWidget):
             return
         # find index
         idx = None
-        for i, (ed, cb, rb) in enumerate(self.rows):
-            if row_widget is ed.parentWidget() or row_widget is cb.parentWidget() or row_widget is rb.parentWidget() if rb else False:
+        for i, (ed, rb) in enumerate(self.rows):
+            if row_widget is ed.parentWidget() or row_widget is rb.parentWidget() if rb else False:
                 idx = i
                 break
         # fallback: remove by widget match
         if idx is None:
-            for i, (ed, cb, rb) in enumerate(self.rows):
+            for i, (ed, rb) in enumerate(self.rows):
                 if row_widget is ed.parentWidget():
                     idx = i
                     break
@@ -772,14 +780,14 @@ class _MultiFieldEditor(QWidget):
 
     def _update_remove_enabled(self) -> None:
         can_remove = len(self.rows) > 1
-        for _, _, rb in self.rows:
+        for _, rb in self.rows:
             if rb is not None:
                 rb.setEnabled(can_remove)
 
     def to_payload(self) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
-        for editor, selected_cb, _ in self.rows:
-            out.append(_wrap_value(_read_value_widget(self.fdef, editor), selected_cb.isChecked()))
+        for editor, _ in self.rows:
+            out.append(_read_value_widget(self.fdef, editor))
         return out
 
 
@@ -804,7 +812,7 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
         return w
 
     if ftype == "enum":
-        w = QComboBox()
+        w = NoScrollComboBox()
         opts = fdef.get("options") or []
         if isinstance(opts, list):
             w.addItems([str(o) for o in opts])
@@ -830,24 +838,27 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
 
-        year = QComboBox()
+        year = NoScrollComboBox()
         # sensible range
         this_year = date.today().year
         years = list(range(this_year - 60, this_year + 6))
         year.addItems([str(v) for v in years])
         y_idx = year.findText(str(y))
         year.setCurrentIndex(y_idx if y_idx >= 0 else (year.count() - 1))
+        year.setFixedWidth(70)
 
-        month = QComboBox()
+        month = NoScrollComboBox()
         month.addItems([str(v).zfill(2) for v in range(1, 13)])
         m_idx = month.findText(str(m).zfill(2))
         month.setCurrentIndex(m_idx if m_idx >= 0 else 0)
+        month.setFixedWidth(70)
 
         wrap._year_combo = year  # type: ignore[attr-defined]
         wrap._month_combo = month  # type: ignore[attr-defined]
 
         lay.addWidget(year, 1)
         lay.addWidget(month, 1)
+        lay.addStretch()
         return wrap
 
     if ftype == "number":
@@ -909,7 +920,7 @@ def _read_value_widget(fdef: Dict[str, Any], widget: QWidget) -> Any:
         return widget.toPlainText()
 
     if ftype == "enum":
-        assert isinstance(widget, QComboBox)
+        assert isinstance(widget, NoScrollComboBox)
         return widget.currentText()
 
     if ftype == "year_month":
