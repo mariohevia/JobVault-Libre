@@ -7,6 +7,7 @@ version: 1
 #   - description: explanation of what this section contains
 #   - icon: icon identifier for UI display (can be empty string)
 #   - allow_multiple: whether users can add multiple items to this section
+#   - select_multiple: whether multiple values can be selected in the CV builder
 #   - item_label: object with 'singular' and 'plural' labels for items
 #   - fields: array of field definitions
 #
@@ -25,7 +26,7 @@ version: 1
 #   - If type is 'string', 'multiline', 'enum', 'number' an additional 'default_value' may be used
 # 
 # Optional field properties:
-#   - multiple: whether this field can have multiple values
+#   - allow_multiple: whether this field can have multiple values
 #   - select_multiple: whether multiple values can be selected in the CV builder
 
 sections:
@@ -33,7 +34,8 @@ sections:
     default_title: "Summary"
     description: "A brief overview of your professional identity, key skills, and what you offer to employers."
     icon: ""
-    allow_multiple: false
+    allow_multiple: true
+    select_multiple: false
 
     item_label:
       singular: "Summary"
@@ -43,14 +45,14 @@ sections:
       - name: summary
         label: "Summary"
         type: multiline
-        multiple: true
-        select_multiple: false
+        allow_multiple: true
 
   - name: experience
     default_title: "Experience"
     description: "Jobs, roles, and internships."
     icon: "briefcase"          # purely for UI
     allow_multiple: true
+    select_multiple: true
 
     item_label:
       singular: "Position"
@@ -89,13 +91,13 @@ sections:
       - name: summary
         label: "Responsibilities"
         type: multiline
-        multiple: true
+        allow_multiple: true
         select_multiple: false
 
       - name: achievements
         label: "Achievements"
         type: multiline
-        multiple: true
+        allow_multiple: true
         select_multiple: true
 
   - name: skills
@@ -103,6 +105,7 @@ sections:
     description: "Technical and soft skills."
     icon: "sparkles"
     allow_multiple: true
+    select_multiple: true
 
     item_label:
       singular: "Skill Category"
@@ -124,7 +127,7 @@ sections:
       - name: skill
         label: "Skill"
         type: object
-        multiple: true
+        allow_multiple: true
         select_multiple: true
         fields:
           - name: name

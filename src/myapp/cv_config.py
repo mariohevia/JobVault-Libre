@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
-import os
 
 from importlib import resources
 from datetime import date
@@ -29,63 +27,26 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-#TODO: Do a fail safe if the yml files are wrong.
+from myapp.QToggle import QToggle
+from myapp.utils import (
+    load_cv_config, 
+    load_full_config, 
+    save_full_config,
+    today_year_month,
+)
+
+# TODO: Do a fail safe if the yml files are wrong.
+# TODO: Decide whether "Profile" is an appropriate name
 
 STATUS_COLORS = {
     "Enabled": "#10B981",
-    "Disable": "#F59E0B",
-    "Never Use": "#EF4444",
+    "Disable": "#EF4444",
 }
 
 EDIT_ICON = QIcon.fromTheme("document-edit")
 
-
 SectionDef = Dict[str, Any]
 SectionCfg = Dict[str, Any]
-
-
-def _ensure_dir_for_file(path: str) -> None:
-    folder = os.path.dirname(os.path.abspath(path))
-    if folder and not os.path.exists(folder):
-        os.makedirs(folder, exist_ok=True)
-
-
-def _load_full_config(config_path: str) -> Dict[str, Any]:
-    if not config_path:
-        return {"sections": {}}
-
-    if not os.path.exists(config_path):
-        _ensure_dir_for_file(config_path)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump({"sections": {}}, f, indent=2, ensure_ascii=False)
-        return {"sections": {}}
-
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return {"sections": {}}
-        if "sections" not in data or not isinstance(data.get("sections"), dict):
-            data["sections"] = {}
-        return data
-    except Exception:
-        return {"sections": {}}
-
-
-def _save_full_config(config_path: str, full_cfg: Dict[str, Any]) -> None:
-    _ensure_dir_for_file(config_path)
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(full_cfg, f, indent=2, ensure_ascii=False)
-
-
-def _today_year_month() -> Tuple[int, int]:
-    d = date.today()
-    return d.year, d.month
-
-
-def _normalise_section_state(v: Any) -> str:
-    v = (v or "").strip()
-    return v if v in ("enabled", "disabled", "never_use") else "enabled"
 
 
 def _field_default_value(field_def: Dict[str, Any]) -> Any:
@@ -98,7 +59,7 @@ def _field_default_value(field_def: Dict[str, Any]) -> Any:
             return dv
 
     if ftype == "year_month":
-        y, m = _today_year_month()
+        y, m = today_year_month()
         return {"year": y, "month": m}
 
     if ftype == "enum":
@@ -308,7 +269,7 @@ class SectionSettingsOverlay(QWidget):
         self.scroll_layout.setSpacing(14)
 
         # Section state selector
-        self.scroll_layout.addWidget(self._build_section_state_block())
+        self.scroll_layout.addWidget(self._build_section_visibility_block())
 
         # Items block
         self.items_container = QVBoxLayout()
@@ -359,29 +320,24 @@ class SectionSettingsOverlay(QWidget):
 
     # ---------- UI building ----------
 
-    def _build_section_state_block(self) -> QGroupBox:
-        gb = QGroupBox("Section state")
+    def _build_section_visibility_block(self) -> QGroupBox:
+        gb = QGroupBox("Section Visibility && Defaults")
         lay = QVBoxLayout(gb)
         lay.setContentsMargins(12, 10, 12, 12)
         lay.setSpacing(10)
 
         row = QHBoxLayout()
-        row.addWidget(QLabel("Behaviour"))
+        row.addWidget(QLabel("Include in CV builder"))
+        self.include_toggle = QToggle()
+        self.include_toggle.setChecked(True)
+        row.addWidget(self.include_toggle)
         row.addStretch()
 
-        self.state_combo = QComboBox()
-        self.state_combo.addItems(["enabled", "disabled", "never_use"])
-        current = _normalise_section_state(self.section_cfg.get("state"))
-        idx = self.state_combo.findText(current)
-        self.state_combo.setCurrentIndex(idx if idx >= 0 else 0)
-
-        row.addWidget(self.state_combo)
+        row.addWidget(QLabel("Preselected in CV builder"))
+        self.default_toggle = QToggle()
+        self.default_toggle.setChecked(True)
+        row.addWidget(self.default_toggle)
         lay.addLayout(row)
-
-        hint = QLabel("Note: this value is stored only; it does not change behaviour in the UI yet.")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("opacity: 0.85; font-size: 12px;")
-        lay.addWidget(hint)
 
         return gb
 
@@ -500,7 +456,8 @@ class SectionSettingsOverlay(QWidget):
 
         # collect section payload
         section_payload: Dict[str, Any] = {
-            "state": self.state_combo.currentText(),
+            "enabled": self.include_toggle.isChecked(),
+            "preselected": self.default_toggle.isChecked(),
             "items": [ed.to_payload() for ed in self._item_widgets],
         }
 
@@ -509,12 +466,9 @@ class SectionSettingsOverlay(QWidget):
             section_payload["items"] = [section_payload["items"][0]]
 
         # write full config with only this section replaced
-        full_cfg = _load_full_config(self.config_path)
-        full_cfg.setdefault("sections", {})
-        if not isinstance(full_cfg["sections"], dict):
-            full_cfg["sections"] = {}
-        full_cfg["sections"][self.section_name] = section_payload
-        _save_full_config(self.config_path, full_cfg)
+        full_cfg = load_full_config(self.config_path)
+        full_cfg["cv_config"]["sections"][self.section_name] = section_payload
+        save_full_config(self.config_path, full_cfg)
 
         if self.on_saved:
             self.on_saved(self.section_name, section_payload)
@@ -808,7 +762,7 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
             m = value.get("month")
 
         if not isinstance(y, int) or not isinstance(m, int):
-            ty, tm = _today_year_month()
+            ty, tm = today_year_month()
             y, m = ty, tm
 
         wrap = QWidget()
@@ -981,7 +935,7 @@ class SectionCard(QWidget):
         title = title_override or default_title
 
         # Enabled / never_use flags
-        status = self.user_section.get("status", "Enabled")
+        status = self.user_section.get("enabled", True)
 
         # Item count
         items = self.user_section.get("items", []) or []
@@ -998,9 +952,7 @@ class SectionCard(QWidget):
         # Status text
         match status:
             case "Disabled":
-                status_text = "Disabled"
-            case "Never Use":
-                status_text = "Never Use"
+                status_text = "Hidden"
             case _:
                 status_text = "Enabled"
 
@@ -1149,8 +1101,8 @@ class ProfilePage(QWidget):
 
         
         section_name = section_def.get("name")
-        full_cfg = _load_full_config(str(self.paths.get("config")))
-        saved_section_cfg = full_cfg.get("sections", {}).get(section_name, {})
+        cv_cfg = load_cv_config(str(self.paths.get("config")))
+        saved_section_cfg = cv_cfg.get("sections", {}).get(section_name, {})
 
         self._overlay = SectionSettingsOverlay(
             parent=self,
@@ -1167,13 +1119,14 @@ class ProfilePage(QWidget):
     def _on_section_saved(self, section_name: str, payload: dict):
         """Callback when a section is saved - refresh the UI."""
         self._load_data_and_build_section_list()
+
     # ----------------------
     # Data loading
     # ----------------------
 
     def _load_data_and_build_section_list(self) -> None:
-        self.section_defs = self._load_section_types_from_yaml()
-        self.user_profile = self._load_user_profile_from_json(self.paths.get("config"))
+        self.section_defs = self._load_section_names_from_yaml()
+        self.user_profile = load_cv_config(self.paths.get("config"))["sections"]
 
         # Clear previous cards if any
         while self.section_list_layout.count():
@@ -1182,12 +1135,9 @@ class ProfilePage(QWidget):
             if w is not None:
                 w.deleteLater()
 
-        # Build cards from YAML definitions
-        user_sections_by_name = self._index_user_sections_by_name(self.user_profile)
-
         for section_def in self.section_defs:
             section_name = section_def.get("name")
-            user_section = user_sections_by_name.get(section_name)
+            user_section = self.user_profile.get(section_name)
 
             card = SectionCard(section_def, user_section, parent=self.section_list_container, on_edit=self.open_section_settings_overlay)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -1197,44 +1147,7 @@ class ProfilePage(QWidget):
         self.section_list_layout.addStretch(1)
 
     @staticmethod
-    def _index_user_sections_by_name(user_profile: dict) -> dict[str, dict]:
-        result: dict[str, dict] = {}
-        sections = user_profile.get("sections", {})  # Changed from [] to {}
-        
-        # Handle both dict and list formats for backwards compatibility
-        if isinstance(sections, dict):
-            # New format: sections is already a dict keyed by name
-            result = sections
-        elif isinstance(sections, list):
-            # Old format: sections is a list with 'name' fields
-            for sec in sections:
-                sec_name = sec.get("name")
-                if sec_name:
-                    result[sec_name] = sec
-        
-        return result
-
-    @staticmethod
-    def _load_user_profile_from_json(config_path: Path | None) -> dict:
-        if not config_path:
-            return {}
-
-        if not config_path.exists():
-            # If there is no user profile yet, treat as empty profile
-            return {}
-
-        try:
-            with config_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, dict):
-                return {}
-            return data
-        except Exception:
-            # In case of parse errors, fail gracefully and show no data
-            return {}
-
-    @staticmethod
-    def _load_section_types_from_yaml() -> list[dict]:
+    def _load_section_names_from_yaml() -> list[dict]:
         """
         Load the static section schema from myapp/resources/section_types.yml
         Adjust "myapp.resources" if your package name differs.

@@ -18,7 +18,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 
 from myapp.database import JobDatabase
 from myapp.tracker import TrackerPage
-from myapp.profile import ProfilePage
+from myapp.cv_config import ProfilePage
 from myapp.utils import get_app_paths_for_user
 
 class MainWindow(QMainWindow):
@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         )
 
         self.btn_applications = self._make_nav_button("Applications")
-        self.btn_profile = self._make_nav_button("Profile")
+        self.btn_profile = self._make_nav_button("CV Configuration")
 
         # horizontal layout just for logo + title
         nav_header_layout = QHBoxLayout()
