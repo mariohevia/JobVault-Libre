@@ -33,6 +33,66 @@ version: 1
 #   - layout_width (default 'full'): one of ['full', 'half']; if allow_multiple is true this is not considered and 'full' is used
 
 sections:
+
+  - name: contact_info
+    default_title: "Contact Information"
+    description: "Your personal contact details and online presence."
+    icon: "mail"
+    allow_multiple: false
+    select_multiple: false
+
+    item_label:
+      singular: "Contact Info"
+      plural: "Contact Info"
+
+    fields:
+      - name: full_name
+        label: "Full Name"
+        type: string
+        allow_hide_in_cv: false
+
+      - name: email
+        label: "Email"
+        type: string
+        allow_hide_in_cv: false
+        layout_width: "half"
+
+      - name: phone
+        label: "Phone"
+        type: string
+        layout_width: "half"
+
+      - name: location
+        label: "Location"
+        type: string
+        layout_width: "half"
+
+      - name: date_of_birth
+        label: "Date of Birth"
+        type: year_month
+        layout_width: "half"
+
+      - name: links
+        label: "Link"
+        type: object
+        allow_multiple: true
+        select_multiple: true
+        show_name: false
+        fields:
+          - name: platform
+            label: "Platform"
+            type: enum
+            options: ["LinkedIn", "GitHub", "Portfolio", "Twitter/X"]
+
+          - name: url
+            label: "URL"
+            type: string
+
+          - name: right_to_work
+            label: "Right to Work"
+            type: enum
+            options: ["British Citizen", "EU/EEA Citizen", "Settled Status", "Pre-Settled Status", "Tier 2 Work Visa", "Tier 5 Work Visa", "Student Visa (with work permission)"]
+
   - name: summary
     default_title: "Summary"
     description: "A brief overview of your professional identity, key skills, and what you offer to employers."
@@ -135,7 +195,6 @@ sections:
           - "Deep Visualisation"
           - "MLOps & Deployment"
           - "Cloud Platforms"
-          - "Other"
 
       - name: skill
         label: "Skill"
@@ -156,3 +215,138 @@ sections:
           - name: years
             label: "Years of experience"
             type: number
+
+  - name: projects
+    default_title: "Projects"
+    description: "Personal, professional, or academic projects you want to highlight."
+    icon: "code-bracket"
+    allow_multiple: true
+    select_multiple: true
+
+    item_label:
+      singular: "Project"
+      plural: "Projects"
+
+    fields:
+      - name: title
+        label: "Project Title"
+        type: string
+        allow_hide_in_cv: false
+
+      - name: role
+        label: "Your Role"
+        type: string
+        layout_width: "half"
+
+      - name: status
+        label: "Status"
+        type: enum
+        options: ["Completed", "In Progress", "Archived"]
+        layout_width: "half"
+
+      - name: start_date
+        label: "Start Date"
+        type: year_month
+        layout_width: "half"
+
+      - name: end_date
+        label: "End Date"
+        type: year_month
+        layout_width: "half"
+
+      - name: description
+        label: "Description"
+        type: multiline
+        allow_multiple: false
+
+      - name: achievements
+        label: "Key Achievement"
+        type: string
+        allow_multiple: true
+        select_multiple: true
+
+      - name: technologies
+        label: "Technology"
+        type: object
+        allow_multiple: true
+        select_multiple: true
+        show_name: false
+        fields:
+          - name: name
+            label: "Name"
+            type: string
+
+          - name: category
+            label: "Category"
+            type: enum
+            options: ["Language", "Framework", "Library", "Tool", "Platform", "Database"]
+
+      - name: links
+        label: "Link"
+        type: object
+        allow_multiple: true
+        select_multiple: true
+        show_name: false
+        fields:
+          - name: type
+            label: "Type"
+            type: enum
+            options: ["Repository", "Live Demo", "Documentation", "Paper"]
+
+          - name: url
+            label: "URL"
+            type: string
+
+  - name: education
+    default_title: "Education"
+    description: "Academic qualifications, degrees, and relevant coursework."
+    icon: "graduation-cap"
+    allow_multiple: true
+    select_multiple: true
+
+    item_label:
+      singular: "Qualification"
+      plural: "Qualifications"
+
+    fields:
+      - name: degree
+        label: "Degree / Qualification"
+        type: enum
+        options: ["PhD", "Master's", "Bachelor's", "Foundation Degree", "HNC", "HND", "Diploma", "A-Levels", "GCSEs", "Certificate"]
+        layout_width: "half"
+
+      - name: field_of_study
+        label: "Subject / Field of Study"
+        type: string
+        layout_width: "half"
+
+      - name: institution
+        label: "Institution"
+        type: string
+        layout_width: "half"
+
+      - name: location
+        label: "Location"
+        type: string
+        layout_width: "half"
+
+      - name: start_date
+        label: "Start Date"
+        type: year_month
+        layout_width: "half"
+
+      - name: end_date
+        label: "End Date"
+        type: year_month
+        layout_width: "half"
+
+      - name: degree_class
+        label: "Degree Classification"
+        type: enum
+        options: ["Distinction", "First Class Honours", "Upper Second Class Honours (2:1)", "Lower Second Class Honours (2:2)", "Third Class Honours", "Pass", "Not Applicable"]
+        layout_width: "half"
+
+      - name: description
+        label: "Description / Relevant Coursework"
+        type: multiline
+        allow_multiple: false

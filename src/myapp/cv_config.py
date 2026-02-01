@@ -342,30 +342,109 @@ class SectionSettingsOverlay(QWidget):
         lay_child = QGridLayout(gb_child)
 
         self.field_toggles = {}
-        field_visibility = self.section_cfg.get("field_visibility", {})
-        current_row = 0
-        current_col = 0
-        for field in self.section_def.get("fields", []):
-            field_label = QLabel(field["label"].title())
-            field_toggle = QToggle()
-            included = field_visibility.get(field["name"], True)
-            field_toggle.setChecked(included)
-            lay_child.addWidget(field_label, current_row, current_col, 1, 1, Qt.AlignmentFlag.AlignRight)
-            lay_child.addWidget(field_toggle, current_row, current_col + 1, 1, 1, Qt.AlignmentFlag.AlignLeft)
-            self.field_toggles[field["name"]] = field_toggle
-            current_col += 2
-            if current_col >= 6:
-                current_row += 1
-                current_col = 0
-                
-        if current_row == 0:
-            while current_col <= 6:
-                lay_child.addWidget(QWidget(), 0, current_col, 1, 1)
-                current_col += 1
-            
+        grid_pos = [0, 0]
+        self._build_field_toggles(
+            fields=self.section_def.get("fields", []),
+            layout=lay_child,
+            field_visibility=self.section_cfg.get("field_visibility", {}),
+            grid_pos=grid_pos,
+        )
+
+        self._enforce_initial_enabled_state(self.field_toggles)
+
+        if grid_pos[0] == 0:
+            while grid_pos[1] <= 6:
+                lay_child.addWidget(QWidget(), 0, grid_pos[1], 1, 1)
+                grid_pos[1] += 1
+
         lay.addWidget(gb_child)
         return gb
 
+    def _build_field_toggles(self, fields, layout, field_visibility, grid_pos, parent_key=None, parent_label=None, depth=0):
+
+        for field in fields:
+            prefix = f"{parent_label.title()} › " if depth > 0 else ""
+            is_object = field.get("type") == "object"
+
+            visibility_value = field_visibility.get(field["name"], {} if is_object else True)
+            if is_object and isinstance(visibility_value, bool):
+                visibility_value = {"_visible": visibility_value}
+
+            label = QLabel(f"{prefix}{field['label'].title()}")
+            toggle = QToggle()
+
+            if is_object:
+                checked = visibility_value.get("_visible", True)
+            else:
+                checked = visibility_value if isinstance(visibility_value, bool) else True
+
+            toggle.setChecked(checked)
+            layout.addWidget(label, grid_pos[0], grid_pos[1], 1, 1, Qt.AlignmentFlag.AlignRight)
+            layout.addWidget(toggle, grid_pos[0], grid_pos[1] + 1, 1, 1, Qt.AlignmentFlag.AlignLeft)
+
+            grid_pos[1] += 2
+            if grid_pos[1] >= 6:
+                grid_pos[0] += 1
+                grid_pos[1] = 0
+
+            # Store toggle
+            store = self.field_toggles
+            if parent_key:
+                for key in parent_key:
+                    store = store[key]
+
+            if is_object:
+                store[field["name"]] = {"_toggle": toggle}
+                self._build_field_toggles(
+                    fields=field.get("fields", []),
+                    layout=layout,
+                    field_visibility=visibility_value,
+                    parent_key=(parent_key or []) + [field["name"]],
+                    depth=depth + 1,
+                    parent_label=f"{prefix}{field['label'].title()}",
+                    grid_pos=grid_pos,
+                )
+
+                def _on_toggled(state, parent_name=field["name"], parent_key=parent_key):
+                    self._set_children_enabled(parent_name, state, parent_key)
+
+                toggle.toggled.connect(_on_toggled)
+            else:
+                store[field["name"]] = toggle
+
+    def _set_children_enabled(self, parent_name, enabled, parent_key=None):
+        store = self.field_toggles
+        if parent_key:
+            for key in parent_key:
+                store = store[key]
+
+        children = store[parent_name]
+        for key, value in children.items():
+            if key == "_toggle":
+                continue
+            if isinstance(value, dict):
+                value["_toggle"].setEnabled(enabled)
+                if not enabled:
+                    self._set_children_enabled(key, False, (parent_key or []) + [parent_name])
+                else:
+                    if value["_toggle"].isChecked():
+                        self._set_children_enabled(key, True, (parent_key or []) + [parent_name])
+            else:
+                value.setEnabled(enabled)
+
+    def _enforce_initial_enabled_state(self, store, parent_key=None):
+        for key, value in store.items():
+            if key == "_toggle":
+                continue
+            if isinstance(value, dict):
+                toggle = value["_toggle"]
+                if not toggle.isEnabled() or not toggle.isChecked():
+                    # Parent is off — disable all children
+                    self._set_children_enabled(key, False, parent_key)
+                else:
+                    # Parent is on — recurse deeper to check nested objects
+                    self._enforce_initial_enabled_state(value, (parent_key or []) + [key])
+                    
     def _item_label_singular(self) -> str:
         item_label = self.section_def.get("item_label") or {}
         return (item_label.get("singular") or "").strip()
@@ -449,8 +528,11 @@ class SectionSettingsOverlay(QWidget):
 
     def _renumber_item_titles(self) -> None:
         label = self._item_label_singular() or "Item"
-        for i, ed in enumerate(self._item_widgets, start=1):
-            ed.set_title("%s %d" % (label, i))
+        if len(self._item_widgets)>1:
+            for i, ed in enumerate(self._item_widgets, start=1):
+                ed.set_title("%s %d" % (label, i))
+        else:
+            self._item_widgets[0].set_title(label)
 
     def _setup_exclusive_toggles(self) -> None:
         """Make toggles mutually exclusive when select_multiple is False."""
@@ -501,6 +583,22 @@ class SectionSettingsOverlay(QWidget):
         else:
             super().keyPressEvent(event)
 
+    def _collect_field_visibility(self, store=None):
+        if store is None:
+            store = self.field_toggles
+
+        result = {}
+        for name, value in store.items():
+            if isinstance(value, dict):
+                # Object field — recurse, and rename _toggle -> _visible
+                nested = self._collect_field_visibility(value)
+                nested["_visible"] = nested.pop("_toggle")
+                result[name] = nested
+            else:
+                # QToggle
+                result[name] = value.isChecked()
+        return result
+
     def _save_clicked(self) -> None:
         if not self.section_name:
             QMessageBox.warning(self, "Missing section name", "This section has no 'name' in the YAML.")
@@ -511,7 +609,7 @@ class SectionSettingsOverlay(QWidget):
             "enabled": self.include_toggle.isChecked(),
             "preselected": self.default_toggle.isChecked(),
             "items": [ed.to_payload() for ed in self._item_widgets],
-            "field_visibility": {name: t.isChecked() for name, t in self.field_toggles.items()},
+            "field_visibility": self._collect_field_visibility(),
         }
 
         # If allow_multiple is false, keep only one item
@@ -573,10 +671,6 @@ class _ItemEditor(QFrame):
         # Remove button at the top right (if allowed)
         if allow_multiple:
             header = QHBoxLayout()
-        header.addStretch()
-        header.addStretch()
-
-        if allow_multiple:
             header.addStretch()
 
         if allow_multiple:
@@ -1253,9 +1347,6 @@ class ProfilePage(QWidget):
         self.scroll_area.setWidget(self.section_list_container)
 
         self.layout.addWidget(self.scroll_area)
-
-        # Spacer at the bottom
-        self.layout.addStretch(1)
 
     def open_section_settings_overlay(self, section_def: dict, section_cfg_for_section: dict):
         if self._overlay is not None:
