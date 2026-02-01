@@ -128,19 +128,21 @@ sections:
         label: "Category"
         type: enum
         options:
-          - programming
-          - machine_learning
-          - data
-          - cloud
-          - tools
-          - soft_skill
-          - other
+          - "Programming"
+          - "AI & Machine Learning"
+          - "Data Science & ML"
+          - "Deep Learning Frameworks"
+          - "Deep Visualisation"
+          - "MLOps & Deployment"
+          - "Cloud Platforms"
+          - "Other"
 
       - name: skill
         label: "Skill"
         type: object
         allow_multiple: true
         select_multiple: true
+        show_name: false
         fields:
           - name: name
             label: "Name"
@@ -149,7 +151,7 @@ sections:
           - name: level
             label: "Level"
             type: enum
-            options: [beginner, intermediate, advanced]
+            options: [Beginner, Intermediate, Advanced]
 
           - name: years
             label: "Years of experience"

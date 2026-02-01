@@ -320,7 +320,7 @@ class SectionSettingsOverlay(QWidget):
         gb = QGroupBox("Section Visibility")
         gb.setStyleSheet("QGroupBox { font-weight: bold; }")
         lay = QVBoxLayout(gb)
-        lay.setContentsMargins(12, 10, 12, 12)
+        lay.setContentsMargins(80, 25, 80, 25)
         lay.setSpacing(10)
 
         row = QHBoxLayout()
@@ -331,7 +331,7 @@ class SectionSettingsOverlay(QWidget):
         row.addWidget(self.include_toggle)
         row.addStretch()
 
-        row.addWidget(QLabel("Preselected section in CV builder"))
+        row.addWidget(QLabel("Preselect section in CV builder"))
         self.default_toggle = QToggle()
         preselected = self.section_cfg.get("preselected")
         self.default_toggle.setChecked(True if preselected is None else preselected)
@@ -545,7 +545,7 @@ class _ItemEditor(QFrame):
         palette: QPalette,
         allow_multiple: bool,
         on_remove: Callable[[], None],
-    ):
+        ):
         super().__init__()
         self.section_fields = section_fields
         self.payload = payload
@@ -566,7 +566,7 @@ class _ItemEditor(QFrame):
         self.group_box.setStyleSheet("QGroupBox { font-weight: bold; }")
         
         group_layout = QVBoxLayout(self.group_box)
-        group_layout.setContentsMargins(12, 10, 12, 12)
+        group_layout.setContentsMargins(80, 10, 80, 12)
         group_layout.setSpacing(12)
         
         
@@ -584,18 +584,19 @@ class _ItemEditor(QFrame):
             rm.setCursor(Qt.CursorShape.PointingHandCursor)
             rm.clicked.connect(self.on_remove)
             rm.setFixedHeight(30)
+            rm.setObjectName("editorRemoveBtn")
             self.selected_toggle = QToggle()
             included = self.payload.get("selected_default")
             self.selected_toggle.setChecked(False if included is None else included)
             header.addWidget(rm)
-            header.addWidget(QLabel("Preselected in CV builder"))
+            header.addWidget(QLabel("Preselect in CV builder"))
             header.addWidget(self.selected_toggle)
             group_layout.addLayout(header)
         
         # Form fields
         form = QGridLayout()
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(3)
+        form.setHorizontalSpacing(100)
+        form.setVerticalSpacing(4)
         
         current_row = 0
         current_col = 0
@@ -610,7 +611,13 @@ class _ItemEditor(QFrame):
             if is_multi:
                 if not isinstance(initial, list):
                     initial = [initial]
-                editor = _MultiFieldEditor(fdef=fdef, initial_list=initial, show_name=show_name, flabel=flabel)
+                editor = _MultiFieldEditor(
+                    palette=palette, 
+                    fdef=fdef, 
+                    initial_list=initial, 
+                    show_name=show_name, 
+                    flabel=flabel
+                    )
             else:
                 if initial is None:
                     initial = _field_default_value(fdef)
@@ -631,6 +638,19 @@ class _ItemEditor(QFrame):
         
         group_layout.addLayout(form)
         outer.addWidget(self.group_box)
+        self.setStyleSheet("""
+            QPushButton#editorRemoveBtn {
+                background-color: rgba(220, 53, 69, 210);
+                border: 1px solid rgba(220, 53, 69, 210);
+                color: white;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            QPushButton#editorRemoveBtn:hover {
+                background-color: rgba(220, 53, 69, 235);
+            }
+            """)
 
     def set_title(self, title: str) -> None:
         self.group_box.setTitle(title or "Item")
@@ -683,7 +703,13 @@ class _MultiFieldEditor(QWidget):
     and an 'Add another' button at the end.
     """
 
-    def __init__(self, fdef: Dict[str, Any], initial_list: List[Any], show_name: bool, flabel: str):
+    def __init__(
+        self, 
+        palette: QPalette,
+        fdef: Dict[str, Any], 
+        initial_list: List[Any], 
+        show_name: bool, 
+        flabel: str):
         super().__init__()
         self.fdef = fdef
         self.rows: List[Tuple[QWidget, Optional[QPushButton]]] = []
@@ -700,22 +726,60 @@ class _MultiFieldEditor(QWidget):
         for entry in (initial_list or []):
             if entry is None:
                 entry = _field_default_value(fdef)
-            self._add_row(value=entry, flabel=flabel)
+            self._add_row(value=entry, flabel=flabel, show_name=show_name)
 
         # ensure at least one
         if not self.rows:
-            self._add_row(value=_field_default_value(fdef), flabel=flabel)
+            self._add_row(value=_field_default_value(fdef), flabel=flabel, show_name=show_name)
 
         add_row = QHBoxLayout()
         add_row.addStretch()
-        add_btn = QPushButton("Add another")
+        add_btn = QPushButton("＋ Add another")
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.clicked.connect(lambda: self._add_row(value=_field_default_value(self.fdef), flabel=flabel))
         add_btn.setFixedHeight(30)
+        add_btn.setObjectName("addFieldBtn")
         add_row.addWidget(add_btn)
         outer.addLayout(add_row)
 
-    def _add_row(self, value: Any, flabel: str) -> None:
+        highlight = palette.color(QPalette.ColorRole.Highlight)
+
+        self.setStyleSheet("""
+            QPushButton#multifieldRemoveBtn {
+                background-color: rgba(220, 53, 69, 210);
+                border: 1px solid rgba(220, 53, 69, 210);
+                color: white;
+                border-radius: 6px;
+                padding: 2px 10px;
+                font-size: 12px;
+                min-height: 18px;
+                max-height: 18px;
+            }
+            QPushButton#multifieldRemoveBtn:hover {
+                background-color: rgba(220, 53, 69, 235);
+            }
+            QPushButton#multifieldRemoveBtn:disabled {
+                background-color: rgba(220, 53, 69, 80);
+                border: 1px solid rgba(220, 53, 69, 80);
+                color: rgba(255, 255, 255, 120);
+            }
+            QPushButton#addFieldBtn {
+                background-color: %(hl)s;
+                border: 1px solid %(hl)s;
+                border-radius: 6px;
+                padding: 2px 10px;
+                font-size: 12px;
+                min-height: 18px;
+                max-height: 18px;
+            }
+            QPushButton#addFieldBtn:hover { background-color: %(hl2)s; }
+            """
+            % {
+                "hl": highlight.name(),
+                "hl2": highlight.darker(110).name(),
+            })
+
+    def _add_row(self, value: Any, flabel: str, show_name: bool) -> None:
         row_wrap = QWidget()
         row_l = QVBoxLayout(row_wrap)
         row_l.setContentsMargins(0, 0, 0, 0)
@@ -723,15 +787,17 @@ class _MultiFieldEditor(QWidget):
 
         controls = QHBoxLayout()
 
-        label = QLabel(flabel)
-        controls.addWidget(label)
+        if show_name:
+            label = QLabel(flabel)
+            controls.addWidget(label)
         controls.addStretch()
 
         remove_btn: Optional[QPushButton] = None
         if True:
             remove_btn = QPushButton("Remove")
             remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            remove_btn.setFixedHeight(28)
+            # remove_btn.setFixedHeight(28)
+            remove_btn.setObjectName("multifieldRemoveBtn")
             controls.addWidget(remove_btn)
 
         row_l.addLayout(controls)
@@ -813,12 +879,39 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
 
     if ftype == "enum":
         w = NoScrollComboBox()
+        ADD_NEW = "Add new..."
         opts = fdef.get("options") or []
         if isinstance(opts, list):
             w.addItems([str(o) for o in opts])
         current = "" if value is None else str(value)
         idx = w.findText(current)
         w.setCurrentIndex(idx if idx >= 0 else 0)
+        w.addItem(ADD_NEW)
+        w.setEditable(False)
+
+        def handle_activated(index):
+            if w.itemText(index) != ADD_NEW:
+                return
+
+            w.setEditable(True)
+            w.lineEdit().editingFinished.connect(finish_editing)
+            w.clearEditText()
+            w.lineEdit().setFocus()
+
+        def finish_editing():
+            text = w.currentText().strip()
+            w.setEditable(False)
+            added_idx = w.findText(text)
+            if text and added_idx == -1:
+                w.addItem(text)
+            elif text:
+                addnew_idx = w.findText(ADD_NEW)
+                w.removeItem(addnew_idx)
+                w.addItem(ADD_NEW)
+            w.setCurrentText(text or w.itemText(0))
+
+        w.activated.connect(handle_activated)
+
         return w
 
     if ftype == "year_month":
