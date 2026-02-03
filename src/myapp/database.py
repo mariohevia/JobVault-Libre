@@ -87,19 +87,6 @@ class JobDatabase:
             job_url, job_description, notes, cv_pdf, cv_text,
             cover_letter_pdf, cover_letter_text, last_update))
         
-        print("""
-            INSERT INTO job_applications (
-                company, company_website, position, status, location,
-                date_applied, contact_name, contact_email, salary_range,
-                work_arrangement, office_days,
-                job_url, job_description, notes, cv_pdf, cv_text,
-                cover_letter_pdf, cover_letter_text, last_update
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (company, company_website, position, status, location,
-            date_applied, contact_name, contact_email, salary_range,
-            work_arrangement, office_days,
-            job_url, job_description, notes, cv_pdf, cv_text,
-            cover_letter_pdf, cover_letter_text, last_update))
         self.conn.commit()
         return self.cursor.lastrowid
         
