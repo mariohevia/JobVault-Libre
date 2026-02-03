@@ -743,7 +743,8 @@ class _ItemEditor(QFrame):
 
     def to_payload(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
-        out["selected_default"] = self.selected_toggle.isChecked()
+        if self.allow_multiple:
+            out["selected_default"] = self.selected_toggle.isChecked()
         for fname, editor in self._field_editors.items():
             out[fname] = editor.to_payload()
         return out
@@ -822,7 +823,10 @@ class _MultiFieldEditor(QWidget):
         add_row.addStretch()
         add_btn = QPushButton("＋ Add another")
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.clicked.connect(lambda: self._add_row(value=_field_default_value(self.fdef), flabel=flabel))
+        add_btn.clicked.connect(lambda: self._add_row(
+            value=_field_default_value(self.fdef), 
+            flabel=flabel, 
+            show_name=show_name))
         add_btn.setFixedHeight(30)
         add_btn.setObjectName("addFieldBtn")
         add_row.addWidget(add_btn)
@@ -956,6 +960,7 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
 
     if ftype == "multiline":
         w = QTextEdit()
+        w.setAcceptRichText(False)
         w.setPlainText("" if value is None else str(value))
         w.setFixedHeight(110)
         ph = (fdef.get("placeholder") or "").strip()

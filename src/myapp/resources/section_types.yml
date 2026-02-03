@@ -46,10 +46,17 @@ sections:
       plural: "Contact Info"
 
     fields:
-      - name: full_name
-        label: "Full Name"
+      - name: first_name
+        label: "First Name"
         type: string
         allow_hide_in_cv: false
+        layout_width: "half"
+
+      - name: surname
+        label: "Surname"
+        type: string
+        allow_hide_in_cv: false
+        layout_width: "half"
 
       - name: email
         label: "Email"
@@ -72,6 +79,11 @@ sections:
         type: year_month
         layout_width: "half"
 
+      - name: right_to_work
+        label: "Right to Work"
+        type: enum
+        options: ["British Citizen", "EU/EEA Citizen", "Settled Status", "Pre-Settled Status", "Tier 2 Work Visa", "Tier 5 Work Visa", "Student Visa (with work permission)"]
+
       - name: links
         label: "Link"
         type: object
@@ -88,10 +100,10 @@ sections:
             label: "URL"
             type: string
 
-          - name: right_to_work
-            label: "Right to Work"
-            type: enum
-            options: ["British Citizen", "EU/EEA Citizen", "Settled Status", "Pre-Settled Status", "Tier 2 Work Visa", "Tier 5 Work Visa", "Student Visa (with work permission)"]
+          - name: link_text
+            label: "Link text"
+            type: string
+            
 
   - name: summary
     default_title: "Summary"
