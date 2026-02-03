@@ -148,17 +148,9 @@ class SectionSettingsOverlay(QWidget):
             }
             QLineEdit:focus, QTextEdit:focus { border: 1px solid %(hl)s; }
             QComboBox {
-                background-color: %(base)s;
-                color: %(text)s;
                 border: 1px solid %(border)s;
                 border-radius: 6px;
                 padding: 6px;
-            }
-            QComboBox::drop-down { border: none; }
-            QComboBox QAbstractItemView {
-                background-color: %(base)s;
-                color: %(text)s;
-                selection-background-color: %(hl)s;
             }
             QPushButton {
                 background-color: %(btn)s;

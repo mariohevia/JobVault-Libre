@@ -23,6 +23,8 @@ class JobDatabase:
                 contact_name TEXT,
                 contact_email TEXT,
                 salary_range TEXT,
+                work_arrangement TEXT,
+                office_days INTEGER NULL,
                 job_url TEXT,
                 job_description TEXT,
                 notes TEXT,
@@ -47,6 +49,8 @@ class JobDatabase:
             contact_name: Optional[str] = None,
             contact_email: Optional[str] = None,
             salary_range: Optional[str] = None,
+            work_arrangement: Optional[str] = None,
+            office_days: Optional[int] = None,
             job_url: Optional[str] = None,
             job_description: Optional[str] = None,
             notes: Optional[str] = None,
@@ -68,42 +72,59 @@ class JobDatabase:
             The ID of the newly created job application
         """
         last_update = datetime.now().isoformat()
-    
+        
         self.cursor.execute("""
             INSERT INTO job_applications (
                 company, company_website, position, status, location,
                 date_applied, contact_name, contact_email, salary_range,
+                work_arrangement, office_days,
                 job_url, job_description, notes, cv_pdf, cv_text,
                 cover_letter_pdf, cover_letter_text, last_update
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (company, company_website, position, status, location,
             date_applied, contact_name, contact_email, salary_range,
+            work_arrangement, office_days,
             job_url, job_description, notes, cv_pdf, cv_text,
             cover_letter_pdf, cover_letter_text, last_update))
         
+        print("""
+            INSERT INTO job_applications (
+                company, company_website, position, status, location,
+                date_applied, contact_name, contact_email, salary_range,
+                work_arrangement, office_days,
+                job_url, job_description, notes, cv_pdf, cv_text,
+                cover_letter_pdf, cover_letter_text, last_update
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (company, company_website, position, status, location,
+            date_applied, contact_name, contact_email, salary_range,
+            work_arrangement, office_days,
+            job_url, job_description, notes, cv_pdf, cv_text,
+            cover_letter_pdf, cover_letter_text, last_update))
         self.conn.commit()
         return self.cursor.lastrowid
         
     def edit_job(self,
-             job_id: int,
-             company: Optional[str] = None,
-             company_website: Optional[str] = None,
-             position: Optional[str] = None,
-             status: Optional[str] = None,
-             location: Optional[str] = None,
-             source: Optional[str] = None,
-             job_type: Optional[str] = None,
-             date_applied: Optional[str] = None,
-             contact_name: Optional[str] = None,
-             contact_email: Optional[str] = None,
-             salary_range: Optional[str] = None,
-             job_url: Optional[str] = None,
-             job_description: Optional[str] = None,
-             notes: Optional[str] = None,
-             cv_pdf: Optional[bytes] = None,
-             cv_text: Optional[str] = None,
-             cover_letter_pdf: Optional[bytes] = None,
-             cover_letter_text: Optional[str] = None) -> bool:
+            job_id: int,
+            company: Optional[str] = None,
+            company_website: Optional[str] = None,
+            position: Optional[str] = None,
+            status: Optional[str] = None,
+            location: Optional[str] = None,
+            source: Optional[str] = None,
+            job_type: Optional[str] = None,
+            date_applied: Optional[str] = None,
+            contact_name: Optional[str] = None,
+            contact_email: Optional[str] = None,
+            salary_range: Optional[str] = None,
+            work_arrangement: Optional[str] = None,
+            office_days: Optional[int] = None,
+            job_url: Optional[str] = None,
+            job_description: Optional[str] = None,
+            notes: Optional[str] = None,
+            cv_pdf: Optional[bytes] = None,
+            cv_text: Optional[str] = None,
+            cover_letter_pdf: Optional[bytes] = None,
+            cover_letter_text: Optional[str] = None) -> bool:
         """
         Edit an existing job application. Only updates fields that are provided.
         
@@ -151,6 +172,12 @@ class JobDatabase:
         if salary_range is not None:
             fields_to_update.append("salary_range = ?")
             values.append(salary_range)
+        if work_arrangement is not None:
+            fields_to_update.append("work_arrangement = ?")
+            values.append(work_arrangement)
+        if work_arrangement is not None or office_days is not None:
+            fields_to_update.append("office_days = ?")
+            values.append(office_days)
         if job_url is not None:
             fields_to_update.append("job_url = ?")
             values.append(job_url)
@@ -230,6 +257,7 @@ class JobDatabase:
             SELECT id, company, company_website, position, status, location,
                    source, job_type, 
                    date_applied, contact_name, contact_email, salary_range,
+                   work_arrangement, office_days,
                    job_url, job_description, notes, cv_text,
                    cover_letter_text, last_update
             FROM job_applications

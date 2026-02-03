@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QCompleter,
     QTextEdit,
-    QComboBox,
     QMessageBox,
 )
 
@@ -44,6 +43,11 @@ JOB_TYPE_OPTIONS = [
     "Contract",
     ]
 
+WORK_ARRANGEMENT_OPTIONS = [
+    "On-site", 
+    "Hybrid", 
+    "Remote"]
+
 STATUS_COLORS = {
     "Applied": "#3B82F6",              # Blue - neutral/informative
     "Interview Scheduled": "#F59E0B",   # Amber - attention/upcoming
@@ -68,6 +72,8 @@ class JobApplicationCard(QWidget):
         contact_name,
         contact_email,
         salary_range,
+        work_arrangement, 
+        office_days,
         job_url,
         job_description,
         notes,
@@ -89,6 +95,8 @@ class JobApplicationCard(QWidget):
         self.contact_name = contact_name or ""
         self.contact_email = contact_email or ""
         self.salary_range = salary_range or ""
+        self.work_arrangement = work_arrangement or ""
+        self.office_days = office_days
         self.job_url = job_url or ""
         self.job_description = job_description or ""
         self.notes = notes or ""
@@ -199,6 +207,8 @@ class JobApplicationCard(QWidget):
                 "contact_name": self.contact_name,
                 "contact_email": self.contact_email,
                 "salary_range": self.salary_range,
+                "work_arrangement": self.work_arrangement,
+                "office_days": self.office_days,
                 "job_url": self.job_url,
                 "job_description": self.job_description,
                 "notes": self.notes,
@@ -278,6 +288,14 @@ class AddApplicationOverlay(QWidget):
         self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
+        self.work_arrangement = NoScrollComboBox()
+        self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
+        self.work_arrangement.setObjectName("formCombo")
+        self.work_arrangement.currentTextChanged.connect(self._on_work_arrangement_changed)
+        self.office_days = NoScrollComboBox()
+        self.office_days.addItems(["N/A", "Not specified"]+[str(i) for i in range(1,5)])
+        self.office_days.setObjectName("formCombo")
+        self.office_days.setEnabled(False)
 
         self.company_website = QLineEdit()
         self.company_website.setObjectName("formInput")
@@ -336,6 +354,7 @@ class AddApplicationOverlay(QWidget):
             (("Date applied", False), self.date_applied, ("Status", True), self.status),
             (("Job location", False), self.location, ("Job type", False), self.job_type),
             (("Job source", False), self.job_source, ("Salary range", False), self.salary_range),
+            (("Work arrangment", False), self.work_arrangement, ("Office days", False), self.office_days),
             (("Contact name", False), self.contact_name, ("Contact email", False), self.contact_email),
             ]
         for row, (l_meta, l_widget, r_meta, r_widget) in enumerate(pairs):
@@ -407,7 +426,21 @@ class AddApplicationOverlay(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_parent()
-        self.company.setFocus()
+        self.position.setFocus()
+
+    def _on_work_arrangement_changed(self, text: str) -> None:
+        is_hybrid = (text == "Hybrid")
+        self.office_days.setEnabled(is_hybrid)
+
+        if is_hybrid:
+            idx = self.office_days.findText("N/A")
+            self.office_days.removeItem(idx)
+            self.office_days.setCurrentIndex(0)
+        else:
+            if self.office_days.findText("N/A") == -1:
+                self.office_days.addItem("N/A")
+            idx = self.office_days.findText("N/A")
+            self.office_days.setCurrentIndex(idx)
 
     def _fit_to_parent(self):
         """Resize overlay to match parent widget."""
@@ -434,6 +467,14 @@ class AddApplicationOverlay(QWidget):
         position = self.position.text().strip()
         status = self.status.currentText().strip()
         job_type = self.job_type.currentText().strip()
+        work_arrangement = self.work_arrangement.currentText().strip()
+        office_days = self.office_days.currentText().strip()
+        if office_days=="N/A":
+            office_days = None 
+        elif office_days=="Not specified":
+            office_days = 0
+        else:
+            office_days = int(office_days)
 
         # Validate required fields
         is_valid = True
@@ -457,6 +498,8 @@ class AddApplicationOverlay(QWidget):
             "company": company,
             "position": position,
             "status": status,
+            "work_arrangement": work_arrangement,
+            "office_days": office_days,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
             "source": self.job_source.text().strip() or None,
@@ -466,8 +509,8 @@ class AddApplicationOverlay(QWidget):
             "contact_email": self.contact_email.text().strip() or None,
             "salary_range": self.salary_range.text().strip() or None,
             "job_url": self.job_url.text().strip() or None,
-            "job_description": self.job_description.toHtml().strip() or None,  # Save as HTML to preserve formatting
-            "notes": self.notes.toHtml().strip() or None,  # Save as HTML to preserve formatting
+            "job_description": self.job_description.toHtml().strip() or None,
+            "notes": self.notes.toHtml().strip() or None,
             "cv_pdf": None,
             "cv_text": None,
             "cover_letter_pdf": None,
@@ -562,6 +605,8 @@ class ViewApplicationOverlay(QWidget):
 
         def make_value_label(key: str) -> QLabel:
             value = self.job.get(key, "")
+            if value == 0:
+                value = "Not specified"
             if value is None or value == "":
                 value = "—"
             value_label = QLabel(str(value))
@@ -592,6 +637,7 @@ class ViewApplicationOverlay(QWidget):
             ("Date applied", "date_applied", "Status", "status"),
             ("Job location", "location", "Job type", "job_type"),
             ("Job source", "job_source", "Salary range", "salary_range"),
+            ("Work arrangment", "work_arrangement", "Office days", "office_days"),
             ("Contact name", "contact_name", "Contact email", "contact_email"),
         ]
 
@@ -747,14 +793,30 @@ class EditApplicationOverlay(QWidget):
         self.position = QLineEdit(self.job.get("position") or "")
         self.position.setObjectName("formInput")
 
-        self.status = QComboBox()
+        self.status = NoScrollComboBox()
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
         current_status = (self.job.get("status") or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
+        self.work_arrangement = NoScrollComboBox()
+        self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
+        self.work_arrangement.setObjectName("formCombo")
+        current_work_arrangement = (self.job.get("work_arrangement") or "").strip()
+        idx = self.work_arrangement.findText(current_work_arrangement)
+        self.work_arrangement.setCurrentIndex(idx if idx >= 0 else 0)
+        self.work_arrangement.currentTextChanged.connect(self._on_work_arrangement_changed)
+        self.office_days = NoScrollComboBox()
+        self.office_days.setObjectName("formCombo")
+        current_office_days = self.job.get("office_days")
+        if current_office_days is None:
+            self.office_days.addItems(["N/A", "Not specified"]+[str(i) for i in range(1,5)])
+            self.office_days.setEnabled(False)
+        else:
+            self.office_days.addItems(["Not specified"]+[str(i) for i in range(1,5)])
+            self.office_days.setCurrentIndex(current_office_days)
 
-        self.job_type = QComboBox()
+        self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
         current_job_type = (self.job.get("job_type") or "").strip()
@@ -810,6 +872,7 @@ class EditApplicationOverlay(QWidget):
             ("Date applied", self.date_applied, "Status", self.status),
             ("Job location", self.location, "Job type", self.job_type),
             ("Job source", self.job_source, "Salary range", self.salary_range),
+            ("Work arrangment", self.work_arrangement, "Office days", self.office_days),
             ("Contact name", self.contact_name, "Contact email", self.contact_email),
             ]
 
@@ -866,9 +929,29 @@ class EditApplicationOverlay(QWidget):
 
         self.installEventFilter(self)
 
+        # Store base styles for validation
+        self._base_style = ""
+        self._error_style = "border: 2px solid #dc3545 !important;"
+
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_parent()
+        self.position.setFocus()
+
+    def _on_work_arrangement_changed(self, text: str) -> None:
+        is_hybrid = (text == "Hybrid")
+        self.office_days.setEnabled(is_hybrid)
+
+        if is_hybrid:
+            idx = self.office_days.findText("N/A")
+            self.office_days.removeItem(idx)
+            self.office_days.setCurrentIndex(0)
+        else:
+            if self.office_days.findText("N/A") == -1:
+                self.office_days.addItem("N/A")
+            idx = self.office_days.findText("N/A")
+            self.office_days.setCurrentIndex(idx)
+
 
     def _fit_to_parent(self):
         p = self.parentWidget()
@@ -904,38 +987,65 @@ class EditApplicationOverlay(QWidget):
         if job_id is None:
             return
 
+        company = self.company.text().strip()
+        position = self.position.text().strip()
+        status = self.status.currentText().strip()
+        job_type = self.job_type.currentText().strip()
+        work_arrangement = self.work_arrangement.currentText().strip()
+        office_days = self.office_days.currentText().strip()
+        if office_days=="N/A":
+            office_days = None 
+        elif office_days=="Not specified":
+            office_days = 0
+        else:
+            office_days = int(office_days)
+
+        is_valid = True
+
+        if not company:
+            self.company.setStyleSheet(self._error_style)
+            is_valid = False
+        else:
+            self.company.setStyleSheet(self._base_style)
+            
+        if not position:
+            self.position.setStyleSheet(self._error_style)
+            is_valid = False
+        else:
+            self.position.setStyleSheet(self._base_style)
+
+        if not is_valid:
+            return
+
         # Read current values
         current = {
-            "company": self.company.text(),
-            "company_website": self.company_website.text(),
-            "position": self.position.text(),
-            "status": self.status.currentText(),
-            "location": self.location.text(),
-            "job_source": self.job_source.text(),
-            "job_type": self.job_type.currentText(),
-            "date_applied": self.date_applied.text(),
-            "contact_name": self.contact_name.text(),
-            "contact_email": self.contact_email.text(),
-            "salary_range": self.salary_range.text(),
-            "job_url": self.job_url.text(),
-            "job_description": self.job_description.toHtml(),  # Save as HTML
-            "notes": self.notes.toHtml(),  # Save as HTML
+            "company": company,
+            "position": position,
+            "status": status,
+            "work_arrangement": work_arrangement,
+            "office_days": office_days,
+            "company_website": self.company_website.text().strip() or None,
+            "location": self.location.text().strip() or None,
+            "source": self.job_source.text().strip() or None,
+            "job_type": job_type,
+            "date_applied": self.date_applied.text().strip() or None,
+            "contact_name": self.contact_name.text().strip() or None,
+            "contact_email": self.contact_email.text().strip() or None,
+            "salary_range": self.salary_range.text().strip() or None,
+            "job_url": self.job_url.text().strip() or None,
+            "job_description": self.job_description.toHtml().strip() or None,
+            "notes": self.notes.toHtml().strip() or None,
+            "cv_pdf": None,
+            "cv_text": None,
+            "cover_letter_pdf": None,
+            "cover_letter_text": None,
         }
-
-        # Convert empty strings to None (so DB stores NULL, like your add overlay)
-        def norm(v: str):
-            v = (v or "").strip()
-            return v if v else None
-
-        current_norm = {k: norm(v) for k, v in current.items()}
 
         # Only send changed fields
         changes = {}
-        for k, new_v in current_norm.items():
+        for k, new_v in current.items():
             old_v = self.job.get(k)
-            # normalise old side similarly for stable comparison
-            old_v_norm = norm(old_v) if isinstance(old_v, str) else (old_v if old_v is not None else None)
-            if new_v != old_v_norm:
+            if new_v != old_v:
                 changes[k] = new_v
 
         if changes:
@@ -1152,21 +1262,11 @@ class TrackerPage(QWidget):
             
             /* ==================== COMBOBOX ==================== */
             QComboBox#formCombo {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
                 border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
             }}
-            QComboBox#formCombo::drop-down {{
-                border: none;
-            }}
-            QComboBox#formCombo QAbstractItemView {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                selection-background-color: {highlight.name()};
-            }}
-            
+
             /* ==================== VALUE LABELS (READ-ONLY) ==================== */
             QLabel#valueLabel {{
                 background-color: {base_bg.name()};
@@ -1356,10 +1456,12 @@ class TrackerPage(QWidget):
                 "contact_name": r[9],
                 "contact_email": r[10],
                 "salary_range": r[11],
-                "job_url": r[12],
-                "job_description": r[13],
-                "notes": r[14],
-                "last_update": r[17],
+                "work_arrangement": r[12],
+                "office_days": r[13],
+                "job_url": r[14],
+                "job_description": r[15],
+                "notes": r[16],
+                "last_update": r[19],
                 # TODO: PDFs and extracted text are intentionally ignored in the UI.
             })
 
