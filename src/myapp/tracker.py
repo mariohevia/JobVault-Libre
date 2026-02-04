@@ -26,6 +26,7 @@ from myapp.utils import NoScrollDateEdit, NoScrollComboBox
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")
 EDIT_ICON = QIcon.fromTheme("document-edit")
+FILTER_ICON = QIcon.fromTheme("view-filter")
 # search_icon = QIcon(":/icons/search.svg")  # or a local file
 
 STATUS_OPTIONS = [
@@ -1097,6 +1098,18 @@ class TrackerPage(QWidget):
             QLineEdit.ActionPosition.LeadingPosition
             )
 
+        # --- Status filter ---
+        self.filter_label = QLabel()
+        self.filter_label.setPixmap(FILTER_ICON.pixmap(16, 16))
+        self.filter_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+        self.status_filter = NoScrollComboBox()
+        self.status_filter.setObjectName("formCombo")
+        self.status_filter.addItem("All statuses")
+        self.status_filter.addItems(STATUS_OPTIONS)
+        self.status_filter.setMinimumHeight(34)
+        self.status_filter.currentTextChanged.connect(
+            lambda _text: self.update_jobs_displayed(self.searchbar.text()))
+
         # Adding Completer.
         self.completer = QCompleter()
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -1107,7 +1120,15 @@ class TrackerPage(QWidget):
         popup.setUniformItemSizes(True)
         popup.setMaximumHeight((self.searchbar.fontMetrics().height() + 4) * self.ROWS_COMPLETER + 2)
 
-        title_layout.addWidget(self.searchbar)
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(8)
+
+        search_row.addWidget(self.filter_label, stretch=0)
+        search_row.addWidget(self.status_filter, stretch=0)
+        search_row.addWidget(self.searchbar, stretch=1)
+
+        title_layout.addLayout(search_row)
         header_layout.addLayout(title_layout, stretch=1)
 
         self.add_application_button = QPushButton("Add Application")
@@ -1489,6 +1510,7 @@ class TrackerPage(QWidget):
             self.body_layout.insertWidget(
                 self.body_layout.count() - 1, w, alignment=Qt.AlignmentFlag.AlignTop
             )
+        self.update_jobs_displayed(self.searchbar.text())
 
     def clear_cards(self):
         # remove all widgets except the final stretch item
@@ -1500,12 +1522,22 @@ class TrackerPage(QWidget):
 
     def update_jobs_displayed(self, text):
         t = (text or "").lower().strip()
+        selected_status = (self.status_filter.currentText() or "").strip()
+
         for widget in self.job_card_widgets:
-            if (
-                t in widget.company.lower()
-                or t in widget.position.lower()
-                or t in widget.location.lower()
-            ):
+            matches_text = (
+                (not t)
+                or (t in widget.company.lower())
+                or (t in widget.position.lower())
+                or (t in widget.location.lower())
+            )
+
+            matches_status = (
+                selected_status == "All statuses"
+                or widget.status.strip() == selected_status
+            )
+
+            if matches_text and matches_status:
                 widget.show()
             else:
                 widget.hide()
