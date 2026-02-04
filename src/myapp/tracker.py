@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QLineEdit,
     QCompleter,
-    QTextEdit,
     QMessageBox,
 )
 
@@ -21,7 +20,7 @@ from PyQt6.QtCore import Qt, QStringListModel, QEvent, QDate
 from PyQt6.QtGui import QIcon, QPalette
 
 from myapp.database import JobDatabase
-from myapp.utils import NoScrollDateEdit, NoScrollComboBox
+from myapp.utils import NoScrollDateEdit, NoScrollComboBox, BaseColourTextEdit
 
 # TODO: guarantee that the icon exists
 SEARCH_ICON = QIcon.fromTheme("edit-find")
@@ -322,13 +321,13 @@ class AddApplicationOverlay(QWidget):
         self.job_url.setObjectName("formInput")
         self.job_url.setPlaceholderText("https://...")
 
-        self.job_description = QTextEdit()
+        self.job_description = BaseColourTextEdit()
         self.job_description.setObjectName("formTextEdit")
         self.job_description.setPlaceholderText("Paste job description here...")
         self.job_description.setAcceptRichText(True)
         self.job_description.setFixedHeight(150)
         
-        self.notes = QTextEdit()
+        self.notes = BaseColourTextEdit()
         self.notes.setObjectName("formTextEdit")
         self.notes.setPlaceholderText("Additional notes...")
         self.notes.setAcceptRichText(True)
@@ -840,16 +839,16 @@ class EditApplicationOverlay(QWidget):
         self.job_url = QLineEdit(self.job.get("job_url") or "")
         self.job_url.setObjectName("formInput")
 
-        self.job_description = QTextEdit()
+        self.job_description = BaseColourTextEdit()
         self.job_description.setObjectName("formTextEdit")
-        self.job_description.setAcceptRichText(True)  # Enable rich text
-        self.job_description.setHtml(self.job.get("job_description") or "")  # Load as HTML
+        self.job_description.setAcceptRichText(True)
+        self.job_description.setHtml(self.job.get("job_description") or "")
         self.job_description.setFixedHeight(150)
         
-        self.notes = QTextEdit()
+        self.notes = BaseColourTextEdit()
         self.notes.setObjectName("formTextEdit")
-        self.notes.setAcceptRichText(True)  # Enable rich text
-        self.notes.setHtml(self.job.get("notes") or "")  # Load as HTML
+        self.notes.setAcceptRichText(True)
+        self.notes.setHtml(self.job.get("notes") or "")
         self.notes.setFixedHeight(150)
 
         label_alignment = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter

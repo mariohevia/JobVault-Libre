@@ -10,11 +10,43 @@ from PyQt6.QtWidgets import (
     QDateEdit,
     QComboBox,
     QAbstractSpinBox,
+    QTextEdit,
 )
-from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QDate
+from PyQt6.QtGui import QIcon, QTextDocumentFragment, QTextCursor, QTextCharFormat, QPalette
+from PyQt6.QtCore import QDate, QMimeData
 
 from myapp.exceptions import ConfigurationFormatError
+
+class BaseColourTextEdit(QTextEdit):
+
+    def insertFromMimeData(self, source: QMimeData):
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+
+        # Range that will be replaced (or insertion point if no selection)
+        start = cursor.selectionStart() if cursor.hasSelection() else cursor.position()
+
+        # Insert rich content as-is
+        if source.hasHtml():
+            frag = QTextDocumentFragment.fromHtml(source.html())
+            cursor.insertFragment(frag)
+        else:
+            cursor.insertText(source.text())
+
+        end = cursor.position()
+
+        # Now overwrite ONLY the pasted/inserted text colour
+        cursor.setPosition(start)
+        cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+
+        fmt = QTextCharFormat()
+        fmt.setForeground(self.palette().color(QPalette.ColorRole.Text))
+        cursor.mergeCharFormat(fmt)
+
+        # Ensure subsequent typing also uses the base text colour
+        self.mergeCurrentCharFormat(fmt)
+
+        cursor.endEditBlock()
 
 class NoScrollDateEdit(QDateEdit):
     def __init__(self, parent=None, date=None):
