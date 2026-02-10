@@ -1230,8 +1230,29 @@ class TrackerPage(QWidget):
         filter_row.addWidget(date_to_label)
         filter_row.addWidget(self.date_to_filter)
 
-        # Push everything left
         filter_row.addStretch(1)
+
+        filter_row.addWidget(self._make_separator())
+
+        # Sort order
+        sort_label = QLabel("Order by:")
+        sort_label.setObjectName("filterByLabel")
+        sort_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.sort_combo = NoScrollComboBox()
+        self.sort_combo.setObjectName("filterCombo")
+        self.sort_combo.addItems([
+            "Date applied \u2193",
+            "Date applied \u2191",
+            "Last update \u2193",
+            "Last update \u2191",
+        ])
+        self.sort_combo.setMinimumHeight(30)
+        self.sort_combo.currentTextChanged.connect(
+            lambda _: self._sort_cards()
+        )
+
+        filter_row.addWidget(sort_label)
+        filter_row.addWidget(self.sort_combo)
 
         main_layout.addLayout(filter_row)
 
@@ -1660,7 +1681,7 @@ class TrackerPage(QWidget):
             self.body_layout.insertWidget(
                 self.body_layout.count() - 1, w, alignment=Qt.AlignmentFlag.AlignTop
             )
-        self.update_jobs_displayed(self.searchbar.text())
+        self._sort_cards()
 
     def clear_cards(self):
         # remove all widgets except the final stretch item
@@ -1669,6 +1690,33 @@ class TrackerPage(QWidget):
             w.setParent(None)
             w.deleteLater()
         self.job_card_widgets = []
+
+    def _sort_cards(self):
+        """Re-order card widgets in body_layout according to the sort combo."""
+        option = self.sort_combo.currentText()
+
+        descending = "\u2193" in option  # ↓ = descending (newest first)
+
+        if "Date applied" in option:
+            # Use Julian day (int) so Python can compare values directly.
+            # Cards with missing/invalid dates are pushed to the end.
+            _sentinel = 0 if descending else 99999999
+            def sort_key(w):
+                d = QDate.fromString(w.date_applied, Qt.DateFormat.ISODate)
+                return d.toJulianDay() if d.isValid() else _sentinel
+        else:  # Last update
+            def sort_key(w):
+                # last_update is an ISO datetime string; lexicographic == chronological.
+                return w.last_update or ""
+
+        reverse = descending
+        sorted_widgets = sorted(self.job_card_widgets, key=sort_key, reverse=reverse)
+
+        # Re-insert in new order (the stretch item stays at the end)
+        for i, w in enumerate(sorted_widgets):
+            self.body_layout.insertWidget(i, w, alignment=Qt.AlignmentFlag.AlignTop)
+
+        self.update_jobs_displayed(self.searchbar.text())
 
     def update_jobs_displayed(self, text):
         t = (text or "").lower().strip()
@@ -1679,7 +1727,7 @@ class TrackerPage(QWidget):
         # Date range: treat the sentinel "no bound" dates as open-ended
         date_from = self.date_from_filter.date()
         date_to = self.date_to_filter.date()
-        # If the user left a date at its minimum/maximum sentinel, treat as unbounded
+        # If the user left a date at its minimum sentinel, treat as unbounded
         no_lower_bound = (date_from == QDate(2000, 1, 1))
 
         for widget in self.job_card_widgets:
