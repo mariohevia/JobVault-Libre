@@ -1071,45 +1071,26 @@ class TrackerPage(QWidget):
         root = self
         main_layout = QVBoxLayout(root)
         main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(12)
+        main_layout.setSpacing(8)
 
-        # --- Header ---
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(12)
+        # ── Row 1: Search bar + Add button ─────────────────────────────────
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(12)
 
-        title_layout = QVBoxLayout()
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(8)
-
-        # --- Search bar ---
-        # TODO: Figure out how to make the border round (StyleSheet is not working for that)
-        # Maybe using a container widget could help
         self.searchbar = QLineEdit()
         self.searchbar.setObjectName("searchBar")
         self.searchbar.setPlaceholderText(
             "Search jobs by company, position, or location..."
-            )
+        )
         self.searchbar.setClearButtonEnabled(True)
         self.searchbar.textChanged.connect(self.update_jobs_displayed)
         self.searchbar.addAction(
             SEARCH_ICON,
             QLineEdit.ActionPosition.LeadingPosition
-            )
+        )
 
-        # --- Status filter ---
-        self.filter_label = QLabel()
-        self.filter_label.setPixmap(FILTER_ICON.pixmap(16, 16))
-        self.filter_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        self.status_filter = NoScrollComboBox()
-        self.status_filter.setObjectName("formCombo")
-        self.status_filter.addItem("All statuses")
-        self.status_filter.addItems(STATUS_OPTIONS)
-        self.status_filter.setMinimumHeight(34)
-        self.status_filter.currentTextChanged.connect(
-            lambda _text: self.update_jobs_displayed(self.searchbar.text()))
-
-        # Adding Completer.
+        # Adding Completer
         self.completer = QCompleter()
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
@@ -1117,28 +1098,138 @@ class TrackerPage(QWidget):
         popup = self.completer.popup()
         popup.setObjectName("completerPopup")
         popup.setUniformItemSizes(True)
-        popup.setMaximumHeight((self.searchbar.fontMetrics().height() + 4) * self.ROWS_COMPLETER + 2)
-
-        search_row = QHBoxLayout()
-        search_row.setContentsMargins(0, 0, 0, 0)
-        search_row.setSpacing(8)
-
-        search_row.addWidget(self.filter_label, stretch=0)
-        search_row.addWidget(self.status_filter, stretch=0)
-        search_row.addWidget(self.searchbar, stretch=1)
-
-        title_layout.addLayout(search_row)
-        header_layout.addLayout(title_layout, stretch=1)
+        popup.setMaximumHeight(
+            (self.searchbar.fontMetrics().height() + 4) * self.ROWS_COMPLETER + 2
+        )
 
         self.add_application_button = QPushButton("Add Application")
         self.add_application_button.clicked.connect(self.add_application)
         self.add_application_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.add_application_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.add_application_button.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
         self.add_application_button.setMinimumHeight(34)
 
-        header_layout.addWidget(self.add_application_button, alignment=Qt.AlignmentFlag.AlignTop)
+        search_row.addWidget(self.searchbar, stretch=1)
+        search_row.addWidget(self.add_application_button)
 
-        main_layout.addLayout(header_layout)
+        main_layout.addLayout(search_row)
+
+        # ── Row 2: Filter bar ───────────────────────────────────────────────
+        filter_row = QHBoxLayout()
+        filter_row.setContentsMargins(0, 0, 0, 0)
+        filter_row.setSpacing(8)
+
+        # Filter icon + label
+        filter_icon_label = QLabel()
+        filter_icon_label.setPixmap(FILTER_ICON.pixmap(16, 16))
+        filter_icon_label.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
+        )
+        filter_by_label = QLabel("Filter by:")
+        filter_by_label.setObjectName("filterByLabel")
+        filter_by_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        filter_row.addWidget(filter_icon_label)
+        filter_row.addWidget(filter_by_label)
+
+        # Status filter
+        status_label = QLabel("Status")
+        status_label.setObjectName("filterLabel")
+        self.status_filter = NoScrollComboBox()
+        self.status_filter.setObjectName("filterCombo")
+        self.status_filter.addItem("Any")
+        self.status_filter.addItems(STATUS_OPTIONS)
+        self.status_filter.setMinimumHeight(30)
+        self.status_filter.currentTextChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(status_label)
+        filter_row.addWidget(self.status_filter)
+
+        # Separator
+        filter_row.addWidget(self._make_separator())
+
+        # Job type filter
+        job_type_label = QLabel("Job type")
+        job_type_label.setObjectName("filterLabel")
+        self.job_type_filter = NoScrollComboBox()
+        self.job_type_filter.setObjectName("filterCombo")
+        self.job_type_filter.addItem("Any")
+        self.job_type_filter.addItems(JOB_TYPE_OPTIONS)
+        self.job_type_filter.setMinimumHeight(30)
+        self.job_type_filter.currentTextChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(job_type_label)
+        filter_row.addWidget(self.job_type_filter)
+
+        # Separator
+        filter_row.addWidget(self._make_separator())
+
+        # Work arrangement filter
+        arrangement_label = QLabel("Arrangement")
+        arrangement_label.setObjectName("filterLabel")
+        self.arrangement_filter = NoScrollComboBox()
+        self.arrangement_filter.setObjectName("filterCombo")
+        self.arrangement_filter.addItem("Any")
+        self.arrangement_filter.addItems(WORK_ARRANGEMENT_OPTIONS)
+        self.arrangement_filter.setMinimumHeight(30)
+        self.arrangement_filter.currentTextChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(arrangement_label)
+        filter_row.addWidget(self.arrangement_filter)
+
+        # Separator
+        filter_row.addWidget(self._make_separator())
+
+        # Date applied range filter
+        date_label = QLabel("Applied")
+        date_label.setObjectName("filterLabel")
+        date_from_label = QLabel("from")
+        date_from_label.setObjectName("filterLabel")
+        date_to_label = QLabel("to")
+        date_to_label.setObjectName("filterLabel")
+
+        today = QDate.currentDate()
+        one_year_ago = today.addYears(-1)
+
+        self.date_from_filter = NoScrollDateEdit(one_year_ago)
+        self.date_from_filter.setObjectName("filterDate")
+        self.date_from_filter.setMinimumHeight(30)
+        self.date_from_filter.setSpecialValueText(" ")   # blank when at minimum
+        self.date_from_filter.setMinimumDate(QDate(2000, 1, 1))
+        self.date_from_filter.setMaximumDate(today)
+        self.date_from_filter.setDate(QDate(2000, 1, 1))  # default = no lower bound
+        self.date_from_filter.dateChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        self.date_to_filter = NoScrollDateEdit(today)
+        self.date_to_filter.setObjectName("filterDate")
+        self.date_to_filter.setMinimumHeight(30)
+        self.date_to_filter.setSpecialValueText(" ")     # blank when at minimum
+        self.date_to_filter.setMinimumDate(QDate(2000, 1, 1))
+        self.date_to_filter.setMaximumDate(today)
+        self.date_to_filter.setDate(today)   # default = no upper bound
+        self.date_to_filter.dateChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(date_label)
+        filter_row.addWidget(date_from_label)
+        filter_row.addWidget(self.date_from_filter)
+        filter_row.addWidget(date_to_label)
+        filter_row.addWidget(self.date_to_filter)
+
+        # Push everything left
+        filter_row.addStretch(1)
+
+        main_layout.addLayout(filter_row)
 
         # --- Scrollable body (only this part scrolls) ---
         body_container = QWidget()
@@ -1164,6 +1255,17 @@ class TrackerPage(QWidget):
         self._apply_stylesheet()
 
         self.refresh_from_db()
+
+    @staticmethod
+    def _make_separator() -> QFrame:
+        """Return a thin vertical separator line for the filter bar."""
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setObjectName("filterSeparator")
+        sep.setFixedWidth(1)
+        sep.setMinimumHeight(20)
+        return sep
 
     def _apply_stylesheet(self):
         """Apply consolidated stylesheet for all components."""
@@ -1216,6 +1318,51 @@ class TrackerPage(QWidget):
                 color: palette(highlighted-text);
             }}
             
+            /* ==================== FILTER BAR ==================== */
+            QLabel#filterByLabel {{
+                font-size: 12px;
+                font-weight: 600;
+                color: {text_color.name()};
+            }}
+            QLabel#filterLabel {{
+                font-size: 11px;
+                color: {text_color.darker(130).name()};
+            }}
+            QComboBox#filterCombo {{
+                border: 1px solid {border_color.name()};
+                border-radius: 4px;
+                padding: 3px 6px;
+                font-size: 11px;
+                min-width: 80px;
+            }}
+            QComboBox#filterCombo:focus {{
+                border: 1px solid {highlight.name()};
+            }}
+            QDateEdit#filterDate {{
+                background-color: {base_bg.name()};
+                color: {text_color.name()};
+                border: 1px solid {border_color.name()};
+                border-radius: 4px;
+                padding: 3px 6px;
+                font-size: 11px;
+                min-width: 88px;
+            }}
+            QDateEdit#filterDate:focus {{
+                border: 1px solid {highlight.name()};
+            }}
+            QDateEdit#filterDate::down-arrow {{
+                image: url("{CALENDAR_ICON_PATH}");
+                width: 13px;
+                height: 13px;
+            }}
+            QDateEdit#filterDate::drop-down {{
+                border: none;
+                padding-right: 4px;
+            }}
+            QFrame#filterSeparator {{
+                color: {border_color.name()};
+            }}
+
             /* ==================== JOB CARDS ==================== */
             QFrame#cardFrame {{
                 border: 1px solid #cccccc;
@@ -1522,8 +1669,17 @@ class TrackerPage(QWidget):
     def update_jobs_displayed(self, text):
         t = (text or "").lower().strip()
         selected_status = (self.status_filter.currentText() or "").strip()
+        selected_job_type = (self.job_type_filter.currentText() or "").strip()
+        selected_arrangement = (self.arrangement_filter.currentText() or "").strip()
+
+        # Date range: treat the sentinel "no bound" dates as open-ended
+        date_from = self.date_from_filter.date()
+        date_to = self.date_to_filter.date()
+        # If the user left a date at its minimum/maximum sentinel, treat as unbounded
+        no_lower_bound = (date_from == QDate(2000, 1, 1))
 
         for widget in self.job_card_widgets:
+            # ── text search ──────────────────────────────────────────────
             matches_text = (
                 (not t)
                 or (t in widget.company.lower())
@@ -1531,12 +1687,36 @@ class TrackerPage(QWidget):
                 or (t in widget.location.lower())
             )
 
+            # ── status filter ────────────────────────────────────────────
             matches_status = (
-                selected_status == "All statuses"
+                selected_status == "Any"
                 or widget.status.strip() == selected_status
             )
 
-            if matches_text and matches_status:
+            # ── job type filter ──────────────────────────────────────────
+            matches_job_type = (
+                selected_job_type == "Any"
+                or widget.job_type.strip() == selected_job_type
+            )
+
+            # ── work arrangement filter ──────────────────────────────────
+            matches_arrangement = (
+                selected_arrangement == "Any"
+                or widget.work_arrangement.strip() == selected_arrangement
+            )
+
+            # ── date range filter ────────────────────────────────────────
+            matches_date = True
+            if widget.date_applied:
+                card_date = QDate.fromString(widget.date_applied, Qt.DateFormat.ISODate)
+                if card_date.isValid():
+                    if not no_lower_bound and card_date < date_from:
+                        matches_date = False
+                    if card_date > date_to:
+                        matches_date = False
+
+            if (matches_text and matches_status and matches_job_type
+                    and matches_arrangement and matches_date):
                 widget.show()
             else:
                 widget.hide()
