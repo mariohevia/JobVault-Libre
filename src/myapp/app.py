@@ -22,6 +22,7 @@ from PyQt6.QtGui import QIcon, QPixmap, QGuiApplication, QFont
 from myapp.database import JobDatabase
 from myapp.tracker import TrackerPage
 from myapp.cv_config import ProfilePage
+from myapp.cv_builder import CVBuilderPage
 from myapp.support_project import SupportPage
 from myapp.utils import get_app_paths_for_user
 from myapp.exceptions import AppError
@@ -197,6 +198,7 @@ class MainWindow(QMainWindow):
 
         self.btn_applications = self._make_nav_button("Applications")
         self.btn_profile = self._make_nav_button("CV Configuration")
+        self.btn_builder = self._make_nav_button("CV Builder")
         self.btn_support_project = self._make_nav_button("Support")
 
         # horizontal layout just for logo + title
@@ -212,6 +214,7 @@ class MainWindow(QMainWindow):
         nav_layout.addSpacing(12)
         nav_layout.addWidget(self.btn_applications)
         nav_layout.addWidget(self.btn_profile)
+        nav_layout.addWidget(self.btn_builder)
         nav_layout.addWidget(self.btn_support_project)
         nav_layout.addStretch()
 
@@ -227,6 +230,9 @@ class MainWindow(QMainWindow):
         self.profile_page = ProfilePage(self.palette, paths=self.user_paths)
         self.stack.addWidget(self.profile_page)
 
+        self.builder_page = CVBuilderPage(self.db, self.palette, paths=self.user_paths)
+        self.stack.addWidget(self.builder_page)
+
         self.support_page = SupportPage(self.palette)
         self.stack.addWidget(self.support_page)
 
@@ -236,6 +242,9 @@ class MainWindow(QMainWindow):
         )
         self.btn_profile.clicked.connect(
             lambda: self._switch_page(self.profile_page, self.btn_profile)
+        )
+        self.btn_builder.clicked.connect(
+            lambda: self._switch_page(self.builder_page, self.btn_builder)
         )
         self.btn_support_project.clicked.connect(
             lambda: self._switch_page(self.support_page, self.btn_support_project)
@@ -306,7 +315,12 @@ class MainWindow(QMainWindow):
 
     def _switch_page(self, page: QWidget, clicked_button: QPushButton):
         # Make sure only one nav button looks "active"
-        for btn in (self.btn_applications, self.btn_profile, self.btn_support_project):
+        for btn in (
+            self.btn_applications, 
+            self.btn_profile, 
+            self.btn_builder, 
+            self.btn_support_project
+            ):
             btn.setChecked(btn is clicked_button)
 
         self.stack.setCurrentWidget(page)

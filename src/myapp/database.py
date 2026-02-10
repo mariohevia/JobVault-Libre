@@ -34,6 +34,30 @@ class JobDatabase:
                 cover_letter_text TEXT,
                 last_update TEXT
                 )""")
+        
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cv_group (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                newest_version_id INTEGER,
+                FOREIGN KEY (newest_version_id)
+                    REFERENCES cv_version(id)
+                    ON DELETE SET NULL
+                )""")
+
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cv_version (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cv_group_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                json_path TEXT NOT NULL,
+                pdf_path TEXT,
+                FOREIGN KEY (cv_group_id)
+                    REFERENCES cv_group(id)
+                    ON DELETE CASCADE
+                )""")
     
         self.conn.commit()
     
@@ -286,6 +310,154 @@ class JobDatabase:
         )
         result = self.cursor.fetchone()
         return result[0] if result and result[0] else None
+
+    def get_all_cv_groups(self) -> List[Tuple]:
+        """
+        Retrieve all CV groups ordered by last update.
+
+        Returns:
+            List of tuples: (id, title, created_at, updated_at, newest_version_id)
+        """
+        self.cursor.execute("""
+            SELECT id, title, created_at, updated_at, newest_version_id
+            FROM cv_group
+            ORDER BY updated_at DESC
+        """)
+        return self.cursor.fetchall()
+
+    def get_newest_cv_json_path(self, cv_group_id: int) -> Optional[str]:
+        """
+        Retrieve the JSON path of the newest CV version for a given CV group.
+
+        Args:
+            cv_group_id: ID of the CV group
+
+        Returns:
+            JSON path as string, or None if not found
+        """
+        self.cursor.execute("""
+            SELECT v.json_path
+            FROM cv_group g
+            JOIN cv_version v ON v.id = g.newest_version_id
+            WHERE g.id = ?
+        """, (cv_group_id,))
+
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
+    def get_cv_versions(self, cv_group_id: int) -> List[Tuple]:
+        """
+        Retrieve all CV versions for a given CV group.
+
+        Args:
+            cv_group_id: ID of the CV group
+
+        Returns:
+            List of tuples: (json_path, created_at)
+        """
+        self.cursor.execute("""
+            SELECT json_path, created_at
+            FROM cv_version
+            WHERE cv_group_id = ?
+            ORDER BY created_at DESC
+        """, (cv_group_id,))
+
+        return self.cursor.fetchall()
+
+    def create_cv_group(self, title: str, created_at: str) -> int:
+        """
+        Create a new CV group.
+
+        Args:
+            title: Display title of the CV group
+            created_at: Creation timestamp (ISO string)
+
+        Returns:
+            ID of the newly created CV group
+        """
+        self.cursor.execute("""
+            INSERT INTO cv_group (title, created_at, updated_at, newest_version_id)
+            VALUES (?, ?, ?, NULL)
+        """, (title, created_at, created_at))
+
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def create_cv_version(
+        self,
+        cv_group_id: int,
+        created_at: str,
+        json_path: str,
+        pdf_path: str | None = None,
+        docx_path: str | None = None,
+        checksum: str | None = None
+        ) -> int:
+        """
+        Create a new immutable CV version and mark it as newest for the group.
+
+        Args:
+            cv_group_id: ID of the CV group
+            created_at: Creation timestamp (ISO string)
+            json_path: Path to the JSON snapshot
+            pdf_path: Optional PDF path
+            docx_path: Optional DOCX path
+            checksum: Optional checksum of the JSON file
+
+        Returns:
+            ID of the newly created CV version
+        """
+        try:
+            self.cursor.execute("BEGIN")
+
+            self.cursor.execute("""
+                INSERT INTO cv_version (
+                    cv_group_id,
+                    created_at,
+                    json_path,
+                    pdf_path,
+                    docx_path,
+                    checksum
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                cv_group_id,
+                created_at,
+                json_path,
+                pdf_path,
+                docx_path,
+                checksum
+            ))
+
+            version_id = self.cursor.lastrowid
+
+            self.cursor.execute("""
+                UPDATE cv_group
+                SET newest_version_id = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (version_id, created_at, cv_group_id))
+
+            self.conn.commit()
+            return version_id
+
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def delete_cv_group(self, cv_group_id: int) -> None:
+        """
+        Delete a CV group and all associated CV versions.
+
+        Args:
+            cv_group_id: ID of the CV group to delete
+        """
+        self.cursor.execute("""
+            DELETE FROM cv_group
+            WHERE id = ?
+        """, (cv_group_id,))
+
+        self.conn.commit()
+
 
     def close(self):
         """Close the database connection."""
