@@ -160,7 +160,8 @@ class JobApplicationCard(QWidget):
         self.position_label = QLabel(self.position)
         self.position_label.setObjectName("positionLabel")
 
-        self.date_label = QLabel(f"Applied: {self.date_applied}")
+        date = QDate.fromString(self.date_applied, Qt.DateFormat.ISODate)
+        self.date_label = QLabel(f"Applied: {date.toString('dd/MM/yyyy')}")
         self.date_label.setObjectName("dateLabel")
 
         middle_row = QHBoxLayout()
@@ -504,7 +505,7 @@ class AddApplicationOverlay(QWidget):
             "location": self.location.text().strip() or None,
             "source": self.job_source.text().strip() or None,
             "job_type": job_type,
-            "date_applied": self.date_applied.text().strip() or None,
+            "date_applied": self.date_applied.date().toString(Qt.DateFormat.ISODate) or None,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
             "salary_range": self.salary_range.text().strip() or None,
@@ -539,7 +540,7 @@ class ViewApplicationOverlay(QWidget):
     """
     def __init__(self, parent: QWidget, job: dict, on_remove, on_edit):
         super().__init__(parent)
-        self.job = dict(job)  # defensive copy
+        self.job = dict(job)
         self.on_remove = on_remove
         self.on_edit = on_edit
 
@@ -566,7 +567,7 @@ class ViewApplicationOverlay(QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
 
-        edit_btn = QPushButton("")  # or "Edit"
+        edit_btn = QPushButton("")
         edit_btn.setIcon(EDIT_ICON)
         edit_btn.setObjectName("editBtn")
         edit_btn.setToolTip("Edit application")
@@ -607,8 +608,12 @@ class ViewApplicationOverlay(QWidget):
             value = self.job.get(key, "")
             if value == 0:
                 value = "Not specified"
-            if value is None or value == "":
+            elif value is None or value == "":
                 value = "—"
+            elif isinstance(value, str):
+                date = QDate.fromString(value, Qt.DateFormat.ISODate)
+                if date.isValid():
+                    value = date.toString("dd/MM/yyyy")
             value_label = QLabel(str(value))
             value_label.setObjectName("valueLabel")
             value_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -828,7 +833,7 @@ class EditApplicationOverlay(QWidget):
         self.job_source = QLineEdit(self.job.get("job_source") or "")
         self.job_source.setObjectName("formInput")
         date = QDate.fromString(self.job.get("date_applied"), Qt.DateFormat.ISODate)
-        self.date_applied = NoScrollDateEdit(date)
+        self.date_applied = NoScrollDateEdit(date=date)
         self.date_applied.setObjectName("formDate")
         self.contact_name = QLineEdit(self.job.get("contact_name") or "")
         self.contact_name.setObjectName("formInput")
@@ -1028,7 +1033,7 @@ class EditApplicationOverlay(QWidget):
             "location": self.location.text().strip() or None,
             "source": self.job_source.text().strip() or None,
             "job_type": job_type,
-            "date_applied": self.date_applied.text().strip() or None,
+            "date_applied": self.date_applied.date().toString(Qt.DateFormat.ISODate) or None,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
             "salary_range": self.salary_range.text().strip() or None,
@@ -1196,9 +1201,8 @@ class TrackerPage(QWidget):
         date_to_label.setObjectName("filterLabel")
 
         today = QDate.currentDate()
-        one_year_ago = today.addYears(-1)
 
-        self.date_from_filter = NoScrollDateEdit(one_year_ago)
+        self.date_from_filter = NoScrollDateEdit()
         self.date_from_filter.setObjectName("filterDate")
         self.date_from_filter.setMinimumHeight(30)
         self.date_from_filter.setSpecialValueText(" ")   # blank when at minimum
@@ -1209,13 +1213,13 @@ class TrackerPage(QWidget):
             lambda _: self.update_jobs_displayed(self.searchbar.text())
         )
 
-        self.date_to_filter = NoScrollDateEdit(today)
+        self.date_to_filter = NoScrollDateEdit()
         self.date_to_filter.setObjectName("filterDate")
         self.date_to_filter.setMinimumHeight(30)
-        self.date_to_filter.setSpecialValueText(" ")     # blank when at minimum
+        self.date_to_filter.setSpecialValueText(" ")
         self.date_to_filter.setMinimumDate(QDate(2000, 1, 1))
-        self.date_to_filter.setMaximumDate(today)
-        self.date_to_filter.setDate(today)   # default = no upper bound
+        self.date_to_filter.setMaximumDate(today.addYears(1))
+        self.date_to_filter.setDate(today)
         self.date_to_filter.dateChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
         )

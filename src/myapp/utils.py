@@ -54,7 +54,7 @@ class NoScrollDateEdit(QDateEdit):
         # Set default configuration
         self.setDisplayFormat("dd/MM/yyyy")
         self.setCalendarPopup(True)
-        if date is QDate:
+        if isinstance(date, QDate):
             self.setDate(date)
         else:
             self.setDate(QDate.currentDate())
