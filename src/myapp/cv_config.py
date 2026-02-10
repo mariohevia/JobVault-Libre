@@ -24,6 +24,9 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QGroupBox,
     QMessageBox,
+    QListWidget,
+    QListWidgetItem,
+    QAbstractItemView,
 )
 
 from myapp.QToggle import QToggle
@@ -1164,6 +1167,7 @@ class SectionCard(QWidget):
         self.on_edit = on_edit
 
         self._init_ui()
+        self.drag_handle.installEventFilter(self)
 
     def _init_ui(self) -> None:
         # Main layout for this widget
@@ -1230,6 +1234,18 @@ class SectionCard(QWidget):
 
         header_row.addWidget(status_label, stretch=0)
 
+        with resources.as_file(resources.files("myapp.resources.icons").joinpath("grip-vertical.png")) as path:
+            HANDLE_ICON = str(path).replace("\\", "/")
+            handle_icon = QIcon(HANDLE_ICON)
+        handle = QLabel(parent=frame)
+        handle.setPixmap(handle_icon.pixmap(16, 16))
+        handle.setObjectName("dragHandle")
+        handle.setCursor(Qt.CursorShape.OpenHandCursor)
+        handle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        header_row.insertWidget(0, handle)
+        self.drag_handle = handle
+
         frame_layout.addLayout(header_row)
 
         # --- Secondary row ---
@@ -1274,6 +1290,25 @@ class SectionCard(QWidget):
         if callable(self.on_edit):
             # pass a job dict (same shape you already use elsewhere)
             self.on_edit(self.section_def, self.user_section)
+
+    def eventFilter(self, obj, event):
+        if obj is self.drag_handle and event.type() == QEvent.Type.MouseButtonPress:
+            list_widget = self._find_list_widget()
+            if list_widget is not None:
+                list_widget.setCurrentRow(
+                    list_widget.row(list_widget.itemAt(self.mapTo(list_widget, event.position().toPoint())))
+                )
+                list_widget.startDrag(Qt.DropAction.MoveAction)
+            return True
+        return super().eventFilter(obj, event)
+
+    def _find_list_widget(self):
+        p = self.parentWidget()
+        while p is not None:
+            if isinstance(p, QListWidget):
+                return p
+            p = p.parentWidget()
+        return None
 
 class ProfilePage(QWidget):
     def __init__(
@@ -1330,20 +1365,43 @@ class ProfilePage(QWidget):
         self.layout.addWidget(header_title)
         self.layout.addWidget(header_subtext)
 
-        # --- Scroll area for section cards ---
+        # --- List of section cards ---
 
-        self.scroll_area = QScrollArea(self.frame)
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.section_list = QListWidget()
+        self.section_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.section_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.section_list.setDropIndicatorShown(True)
+        self.section_list.setDragEnabled(False)
+        self.section_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.section_list.model().rowsMoved.connect(self._save_section_order)
 
-        self.section_list_container = QWidget(self.scroll_area)
-        self.section_list_layout = QVBoxLayout(self.section_list_container)
-        self.section_list_layout.setContentsMargins(0, 8, 0, 0)
-        self.section_list_layout.setSpacing(8)
+        self.layout.addWidget(self.section_list)
 
-        self.scroll_area.setWidget(self.section_list_container)
+        self.setStyleSheet("""
+            QListWidget {
+                outline: none;
+                background: transparent;
+            }
+            QListWidget::item, 
+            QListWidget::item:selected, 
+            QListWidget::item:hover, 
+            QListWidget::item:active {
+                background: transparent;
+                border: none;
+                padding: 0px;
+                margin: 0px;
+            }
+            """)
 
-        self.layout.addWidget(self.scroll_area)
+    def _save_section_order(self):
+        order = []
+        for i in range(self.section_list.count()):
+            item = self.section_list.item(i)
+            order.append(item.data(Qt.ItemDataRole.UserRole))
+
+        full_cfg = load_full_config(str(self.paths.get("config")))
+        full_cfg["cv_config"]["section_order"] = order
+        save_full_config(str(self.paths.get("config")), full_cfg)
 
     def open_section_settings_overlay(self, section_def: dict, section_cfg_for_section: dict):
         if self._overlay is not None:
@@ -1376,26 +1434,33 @@ class ProfilePage(QWidget):
     # ----------------------
 
     def _load_data_and_build_section_list(self) -> None:
-        self.section_defs = self._load_section_names_from_yaml()
-        self.user_profile = load_cv_config(self.paths.get("config"))["sections"]
+        all_defs = self._load_section_names_from_yaml()
+        cv_cfg = load_cv_config(self.paths.get("config"))
+
+        order = cv_cfg.get("section_order")
+
+        if order:
+            defs_by_name = {d["name"]: d for d in all_defs}
+            self.section_defs = [defs_by_name[n] for n in order if n in defs_by_name]
+        else:
+            self.section_defs = all_defs
+        self.user_profile = cv_cfg["sections"]
 
         # Clear previous cards if any
-        while self.section_list_layout.count():
-            item = self.section_list_layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
+        self.section_list.clear()
 
         for section_def in self.section_defs:
             section_name = section_def.get("name")
             user_section = self.user_profile.get(section_name)
 
-            card = SectionCard(section_def, user_section, parent=self.section_list_container, on_edit=self.open_section_settings_overlay)
+            card = SectionCard(section_def, user_section, on_edit=self.open_section_settings_overlay)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-            self.section_list_layout.addWidget(card)
-
-        self.section_list_layout.addStretch(1)
+            item = QListWidgetItem()
+            item.setData(Qt.ItemDataRole.UserRole, section_name)
+            item.setSizeHint(card.sizeHint())
+            self.section_list.addItem(item)
+            self.section_list.setItemWidget(item, card)
 
     @staticmethod
     def _load_section_names_from_yaml() -> list[dict]:

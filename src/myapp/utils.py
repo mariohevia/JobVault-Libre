@@ -12,7 +12,13 @@ from PyQt6.QtWidgets import (
     QAbstractSpinBox,
     QTextEdit,
 )
-from PyQt6.QtGui import QIcon, QTextDocumentFragment, QTextCursor, QTextCharFormat, QPalette
+from PyQt6.QtGui import (
+    QIcon, 
+    QTextDocumentFragment, 
+    QTextCursor, 
+    QTextCharFormat, 
+    QPalette,
+)
 from PyQt6.QtCore import QDate, QMimeData
 
 from myapp.exceptions import ConfigurationFormatError
