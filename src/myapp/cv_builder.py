@@ -14,14 +14,46 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QLineEdit,
     QFrame,
+    QCompleter,
+    QListWidget, 
+    QListWidgetItem, 
+    QAbstractItemView,
 )
 
 from PyQt6.QtGui import QIcon, QPalette
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QDate, QStringListModel
 
 from myapp.database import JobDatabase
-from myapp.utils import load_section_names_from_yaml, load_cv_config
+from myapp.utils import (
+    load_section_names_from_yaml, 
+    load_cv_config,
+    NoScrollDateEdit, 
+    NoScrollComboBox,
+    )
 
+SEARCH_ICON = QIcon.fromTheme("edit-find")
+FILTER_ICON = QIcon.fromTheme("view-filter")
+
+STATUS_OPTIONS = [
+    "Not Applied",
+    "Applied",
+    "Interview Scheduled",
+    "Interviewed",
+    "Offer",
+    "Rejected",
+    "Withdrawn",
+    ]
+
+JOB_TYPE_OPTIONS = [
+    "Full time",
+    "Part time",
+    "Contract",
+    ]
+
+WORK_ARRANGEMENT_OPTIONS = [
+    "On-site", 
+    "Hybrid", 
+    "Remote"]
 
 class CVListPage(QWidget):
 
@@ -193,7 +225,7 @@ class CVTopNavigator(QWidget):
         top_row = QHBoxLayout()
         
         # Back button
-        back_btn = QPushButton("← Back")
+        back_btn = QPushButton("Cancel")
         back_btn.clicked.connect(self.back_clicked.emit)
         back_btn.setFixedHeight(32)
         back_btn.setFixedWidth(80)
@@ -217,7 +249,7 @@ class CVTopNavigator(QWidget):
         
         # Navigation tabs row
         nav_row = QHBoxLayout()
-        nav_row.setSpacing(4)
+        nav_row.setSpacing(0)
         
         self.nav_buttons = {}
         
@@ -241,7 +273,7 @@ class CVTopNavigator(QWidget):
         preview_btn = self._create_nav_button("preview", "Preview")
         nav_row.addWidget(preview_btn)
         
-        nav_row.addStretch()
+        # nav_row.addStretch()
         
         main_layout.addLayout(nav_row)
         
@@ -261,9 +293,12 @@ class CVTopNavigator(QWidget):
             QPushButton {
                 background-color: transparent;
                 border: none;
-                padding: 4px 12px;
+                padding: 6px 12px;
                 font-size: 13px;
-                border-radius: 4px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
             }
             QPushButton:hover {
                 background-color: palette(alternate-base);
@@ -293,6 +328,7 @@ class CVTopNavigator(QWidget):
 
 
 class SectionPlaceholderPage(QWidget):
+    # TODO: Implement these pages
     """Placeholder page for each CV section"""
     
     def __init__(self, section_name: str, section_label: str, parent: QWidget | None = None):
@@ -327,6 +363,333 @@ class SectionPlaceholderPage(QWidget):
         layout.addWidget(placeholder, stretch=1)
 
 
+class JobApplicationCard(QWidget):
+    # TODO: Implement these widgets
+    def __init__(self, job_data: dict, parent: QWidget | None = None):
+        super().__init__(parent)
+
+        self._job_data = job_data  # store full job info
+
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
+
+        # Job title (position)
+        title = self._job_data.get("position", "Untitled Position")
+
+        self.title_label = QLabel(title)
+        self.title_label.setWordWrap(True)
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        layout.addWidget(self.title_label)
+
+
+class TargetApplicationPage(QWidget):
+    """Placeholder page for each CV section"""
+    
+    ROWS_COMPLETER = 2
+
+    def __init__(
+        self, 
+        db: JobDatabase, 
+        palette: QPalette, 
+        section_name: str, 
+        section_label: str,
+        parent: QWidget | None = None
+        ):
+        super().__init__(parent)
+        self.db = db
+        self.palette = palette
+        self.section_name = section_name
+        self.section_label = section_label
+        
+        self._build_ui()
+        
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
+        
+        # ── Row 1: Search bar + Add button ─────────────────────────────────
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(0, 0, 0, 0)
+        search_row.setSpacing(12)
+
+        self.searchbar = QLineEdit()
+        self.searchbar.setObjectName("searchBar")
+        self.searchbar.setPlaceholderText(
+            "Search jobs by company, position, or location..."
+        )
+        self.searchbar.setClearButtonEnabled(True)
+        self.searchbar.textChanged.connect(self.update_jobs_displayed)
+        self.searchbar.addAction(
+            SEARCH_ICON,
+            QLineEdit.ActionPosition.LeadingPosition
+        )
+        
+        # Adding Completer
+        self.completer = QCompleter()
+        self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.searchbar.setCompleter(self.completer)
+        popup = self.completer.popup()
+        popup.setObjectName("completerPopup")
+        popup.setUniformItemSizes(True)
+        popup.setMaximumHeight(
+            (self.searchbar.fontMetrics().height() + 4) * self.ROWS_COMPLETER + 2
+        )
+
+        search_row.addWidget(self.searchbar, stretch=1)
+
+        layout.addLayout(search_row)
+
+        # ── Row 2: Filter bar ───────────────────────────────────────────────
+        filter_row = QHBoxLayout()
+        filter_row.setContentsMargins(0, 0, 0, 0)
+        filter_row.setSpacing(8)
+
+        # Filter icon + label
+        filter_icon_label = QLabel()
+        filter_icon_label.setPixmap(FILTER_ICON.pixmap(16, 16))
+        filter_icon_label.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
+        )
+        filter_by_label = QLabel("Filter by:")
+        filter_by_label.setObjectName("filterByLabel")
+        filter_by_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        filter_row.addWidget(filter_icon_label)
+        filter_row.addWidget(filter_by_label)
+
+        # Status filter
+        status_label = QLabel("Status")
+        status_label.setObjectName("filterLabel")
+        self.status_filter = NoScrollComboBox()
+        self.status_filter.setObjectName("filterCombo")
+        self.status_filter.addItem("Any")
+        self.status_filter.addItems(STATUS_OPTIONS)
+        self.status_filter.setMinimumHeight(30)
+        self.status_filter.currentTextChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(status_label)
+        filter_row.addWidget(self.status_filter)
+
+        # Separator
+        filter_row.addWidget(self._make_separator())
+
+        # Job type filter
+        job_type_label = QLabel("Job type")
+        job_type_label.setObjectName("filterLabel")
+        self.job_type_filter = NoScrollComboBox()
+        self.job_type_filter.setObjectName("filterCombo")
+        self.job_type_filter.addItem("Any")
+        self.job_type_filter.addItems(JOB_TYPE_OPTIONS)
+        self.job_type_filter.setMinimumHeight(30)
+        self.job_type_filter.currentTextChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(job_type_label)
+        filter_row.addWidget(self.job_type_filter)
+
+        # Separator
+        filter_row.addWidget(self._make_separator())
+
+        # Work arrangement filter
+        arrangement_label = QLabel("Arrangement")
+        arrangement_label.setObjectName("filterLabel")
+        self.arrangement_filter = NoScrollComboBox()
+        self.arrangement_filter.setObjectName("filterCombo")
+        self.arrangement_filter.addItem("Any")
+        self.arrangement_filter.addItems(WORK_ARRANGEMENT_OPTIONS)
+        self.arrangement_filter.setMinimumHeight(30)
+        self.arrangement_filter.currentTextChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(arrangement_label)
+        filter_row.addWidget(self.arrangement_filter)
+
+        # Separator
+        filter_row.addWidget(self._make_separator())
+
+        # Date applied range filter
+        date_label = QLabel("Applied")
+        date_label.setObjectName("filterLabel")
+        date_from_label = QLabel("from")
+        date_from_label.setObjectName("filterLabel")
+        date_to_label = QLabel("to")
+        date_to_label.setObjectName("filterLabel")
+
+        today = QDate.currentDate()
+
+        self.date_from_filter = NoScrollDateEdit()
+        self.date_from_filter.setObjectName("filterDate")
+        self.date_from_filter.setMinimumHeight(30)
+        self.date_from_filter.setSpecialValueText(" ")   # blank when at minimum
+        self.date_from_filter.setMinimumDate(QDate(2000, 1, 1))
+        self.date_from_filter.setMaximumDate(today)
+        self.date_from_filter.setDate(QDate(2000, 1, 1))  # default = no lower bound
+        self.date_from_filter.dateChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        self.date_to_filter = NoScrollDateEdit()
+        self.date_to_filter.setObjectName("filterDate")
+        self.date_to_filter.setMinimumHeight(30)
+        self.date_to_filter.setSpecialValueText(" ")
+        self.date_to_filter.setMinimumDate(QDate(2000, 1, 1))
+        self.date_to_filter.setMaximumDate(today.addYears(1))
+        self.date_to_filter.setDate(today)
+        self.date_to_filter.dateChanged.connect(
+            lambda _: self.update_jobs_displayed(self.searchbar.text())
+        )
+
+        filter_row.addWidget(date_label)
+        filter_row.addWidget(date_from_label)
+        filter_row.addWidget(self.date_from_filter)
+        filter_row.addWidget(date_to_label)
+        filter_row.addWidget(self.date_to_filter)
+
+        filter_row.addStretch(1)
+
+        filter_row.addWidget(self._make_separator())
+
+        # Sort order
+        sort_label = QLabel("Order by:")
+        sort_label.setObjectName("filterByLabel")
+        sort_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.sort_combo = NoScrollComboBox()
+        self.sort_combo.setObjectName("filterCombo")
+        self.sort_combo.addItems([
+            "Date applied \u2193",
+            "Date applied \u2191",
+            "Last update \u2193",
+            "Last update \u2191",
+        ])
+        self.sort_combo.setMinimumHeight(30)
+        self.sort_combo.currentTextChanged.connect(
+            lambda _: self._sort_cards()
+        )
+
+        filter_row.addWidget(sort_label)
+        filter_row.addWidget(self.sort_combo)
+
+        layout.addLayout(filter_row)
+
+        # ── Job List ──────────────────────────────────────────────
+        self.job_list = QListWidget()
+        self.job_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.job_list.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self.job_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        layout.addWidget(self.job_list)
+
+        self.query_all_job_apps()
+        self.populate_job_list()
+
+    
+    @staticmethod
+    def _make_separator() -> QFrame:
+        """Return a thin vertical separator line for the filter bar."""
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setObjectName("filterSeparator")
+        sep.setFixedWidth(1)
+        sep.setMinimumHeight(20)
+        return sep
+
+    def populate_job_list(self):
+        self.job_list.clear()
+
+        for job in self.job_applications:
+            item = QListWidgetItem(self.job_list)
+
+            # store full job data inside the item
+            item.setData(Qt.ItemDataRole.UserRole, job)
+
+            # create your custom card widget
+            card = JobApplicationCard(job)
+
+            # make row height match card
+            item.setSizeHint(card.sizeHint())
+
+            self.job_list.addItem(item)
+            self.job_list.setItemWidget(item, card)
+
+    def query_all_job_apps(self):
+        """Fetch all job applications from the database into self.job_applications."""
+        rows = self.db.get_all_jobs()
+
+        # get_all_jobs returns:
+        # (id, company, company_website, position, status, location,
+        #  date_applied, contact_name, contact_email, salary_range,
+        #  job_url, job_description, notes, cv_text, cover_letter_text, last_update)
+        self.job_applications = []
+        for r in rows:
+            self.job_applications.append({
+                "id": r[0],
+                "company": r[1],
+                "company_website": r[2],
+                "position": r[3],
+                "status": r[4],
+                "location": r[5],
+                "job_source": r[6],
+                "job_type": r[7],
+                "date_applied": r[8],
+                "contact_name": r[9],
+                "contact_email": r[10],
+                "salary_range": r[11],
+                "work_arrangement": r[12],
+                "office_days": r[13],
+                "job_url": r[14],
+                "job_description": r[15],
+                "notes": r[16],
+                "last_update": r[19],
+                # TODO: PDFs and extracted text are intentionally ignored in the UI.
+            })
+
+        self.job_companies = [j["company"] for j in self.job_applications if j.get("company")]
+        self.job_positions = [j["position"] for j in self.job_applications if j.get("position")]
+        self.job_locations = [j["location"] for j in self.job_applications if j.get("location")]
+        self.completer_hints = self.job_companies + self.job_positions + self.job_locations
+        self.update_completer_hints(self.completer_hints)
+
+    def update_jobs_displayed(self, text):
+        # TODO: Implement all things properly similar to tracker.py
+        for i in range(self.job_list.count()):
+            item = self.job_list.item(i)
+            job = item.data(Qt.ItemDataRole.UserRole)
+
+            matches = (
+                text in (job.get("company") or "").lower()
+                or text in (job.get("position") or "").lower()
+                or text in (job.get("location") or "").lower()
+            )
+
+            item.setHidden(not matches)
+
+    def get_selected_job(self):
+        item = self.job_list.currentItem()
+        if not item:
+            return None
+        return item.data(Qt.ItemDataRole.UserRole)
+
+    def update_completer_hints(self, hints: list[str]):
+        self.completer.setModel(QStringListModel(hints))
+
 class CVEditorContainer(QWidget):
     """Container for CV editor with persistent top navigation"""
     
@@ -344,7 +707,8 @@ class CVEditorContainer(QWidget):
         self.palette = palette
         self.paths = paths
         self.section_defs = []
-        
+        self.cv_data = {}
+
         self._load_sections()
         self._build_ui()
         
@@ -379,10 +743,10 @@ class CVEditorContainer(QWidget):
         main_layout.addWidget(self.content_stack)
         
         # Create all section pages
-        self.section_pages: Dict[str, SectionPlaceholderPage] = {}
+        self.section_pages: Dict[str, QWidget] = {}
         
         # Add Target Application page
-        self._create_section_page("target_application", "Target Application")
+        self._create_target_app_page("target_application", "Target Application")
         
         # Add section pages
         for section_def in self.section_defs:
@@ -398,6 +762,17 @@ class CVEditorContainer(QWidget):
         
         # Show first section by default
         self._show_section("target_application")
+
+    def _create_target_app_page(self, section_name: str, section_label: str) -> None:
+        """Create and add a target_application page to the stack"""
+        page = TargetApplicationPage(
+            self.db,
+            self.palette,
+            section_name, 
+            section_label, 
+            self)
+        self.content_stack.addWidget(page)
+        self.section_pages[section_name] = page
         
     def _create_section_page(self, section_name: str, section_label: str) -> None:
         """Create and add a section page to the stack"""
@@ -410,6 +785,11 @@ class CVEditorContainer(QWidget):
         if section_name in self.section_pages:
             self.content_stack.setCurrentWidget(self.section_pages[section_name])
             self.top_nav.set_active_section(section_name)
+
+    def set_cv_information(self, cv:Path | None = None) -> None:
+        """Retrieves information from a cv json and sets it for the cv editor instance"""
+        if cv is None:
+            return
 
 
 class CVBuilderPage(QWidget):
@@ -442,15 +822,12 @@ class CVBuilderPage(QWidget):
         
         self.subpages.addWidget(self.main_page)
         self.subpages.addWidget(self.editor_container)
-
-    def show_subpage(self, index: int):
-        if 0 <= index < self.subpages.count():
-            self.subpages.setCurrentIndex(index)
     
     def _show_main_list(self) -> None:
         """Show the main CV list page"""
         self.subpages.setCurrentWidget(self.main_page)
     
-    def _show_cv_editor(self) -> None:
+    def _show_cv_editor(self, cv:Path | None = None) -> None:
         """Show the CV editor with navigation"""
+        self.editor_container.set_cv_information(cv)
         self.subpages.setCurrentWidget(self.editor_container)

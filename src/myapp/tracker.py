@@ -29,6 +29,7 @@ FILTER_ICON = QIcon.fromTheme("view-filter")
 # search_icon = QIcon(":/icons/search.svg")  # or a local file
 
 STATUS_OPTIONS = [
+    "Not Applied",
     "Applied",
     "Interview Scheduled",
     "Interviewed",
@@ -49,7 +50,8 @@ WORK_ARRANGEMENT_OPTIONS = [
     "Remote"]
 
 STATUS_COLORS = {
-    "Applied": "#3B82F6",              # Blue - neutral/informative
+    "Not Applied": "#256D6D",           # Desaturated Teal - informative
+    "Applied": "#3B82F6",               # Blue - informative
     "Interview Scheduled": "#F59E0B",   # Amber - attention/upcoming
     "Interviewed": "#8B5CF6",           # Purple - in progress/waiting
     "Offer": "#2b7a2b",                 # Green - success/positive
