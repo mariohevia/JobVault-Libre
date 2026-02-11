@@ -6,7 +6,6 @@ from importlib import resources
 from datetime import date
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import yaml
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QPalette, QFont, QIcon, QIntValidator
 from PyQt6.QtWidgets import (
@@ -35,6 +34,7 @@ from myapp.utils import (
     load_full_config, 
     save_full_config,
     today_year_month,
+    load_section_names_from_yaml,
 )
 
 from myapp.utils import NoScrollComboBox
@@ -1434,7 +1434,7 @@ class ProfilePage(QWidget):
     # ----------------------
 
     def _load_data_and_build_section_list(self) -> None:
-        all_defs = self._load_section_names_from_yaml()
+        all_defs = load_section_names_from_yaml()
         cv_cfg = load_cv_config(self.paths.get("config"))
 
         order = cv_cfg.get("section_order")
@@ -1461,29 +1461,6 @@ class ProfilePage(QWidget):
             item.setSizeHint(card.sizeHint())
             self.section_list.addItem(item)
             self.section_list.setItemWidget(item, card)
-
-    @staticmethod
-    def _load_section_names_from_yaml() -> list[dict]:
-        """
-        Load the static section schema from myapp/resources/section_types.yml
-        Adjust "myapp.resources" if your package name differs.
-        """
-        try:
-            with resources.files("myapp.resources").joinpath("section_types.yml").open(
-                "r",
-                encoding="utf-8",
-            ) as f:
-                data = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            return []
-        except Exception:
-            # Fail gracefully if YAML is invalid
-            return []
-
-        sections = data.get("sections", []) or []
-        if not isinstance(sections, list):
-            return []
-        return sections
 
     def resizeEvent(self, event):
         """Handle window resize - update overlay if it's open."""

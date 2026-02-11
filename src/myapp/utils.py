@@ -2,6 +2,8 @@ import os
 import sys
 import re
 import json
+import yaml
+from importlib import resources
 from pathlib import Path
 from datetime import date
 from typing import Any, Dict, Tuple
@@ -171,6 +173,28 @@ def load_cv_config(config_path: str) -> Dict[str, Any]:
     cv_config = load_full_config(config_path).get("cv_config")
 
     return cv_config
+
+def load_section_names_from_yaml() -> list[dict]:
+    """
+    Load the static section schema from myapp/resources/section_types.yml
+    Adjust "myapp.resources" if your package name differs.
+    """
+    try:
+        with resources.files("myapp.resources").joinpath("section_types.yml").open(
+            "r",
+            encoding="utf-8",
+        ) as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return []
+    except Exception:
+        # Fail gracefully if YAML is invalid
+        return []
+
+    sections = data.get("sections", []) or []
+    if not isinstance(sections, list):
+        return []
+    return sections
 
 # TODO: use this to create all icons
 # I can safely bundle icons from:
