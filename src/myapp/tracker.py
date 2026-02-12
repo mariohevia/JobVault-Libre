@@ -59,6 +59,10 @@ STATUS_COLORS = {
     "Withdrawn": "#6B7280",             # Gray - neutral/inactive
 }
 
+# Sentinel Julian day used for "Not Applied" jobs in sort (treated as newer than any real date)
+_SORT_SENTINEL_NOT_APPLIED = 99999999
+
+
 class JobApplicationCard(QWidget):
     def __init__(
         self,
@@ -162,8 +166,12 @@ class JobApplicationCard(QWidget):
         self.position_label = QLabel(self.position)
         self.position_label.setObjectName("positionLabel")
 
-        date = QDate.fromString(self.date_applied, Qt.DateFormat.ISODate)
-        self.date_label = QLabel(f"Applied: {date.toString('dd/MM/yyyy')}")
+        if self.date_applied:
+            date = QDate.fromString(self.date_applied, Qt.DateFormat.ISODate)
+            date_text = f"Applied: {date.toString('dd/MM/yyyy')}"
+        else:
+            date_text = "Not applied"
+        self.date_label = QLabel(date_text)
         self.date_label.setObjectName("dateLabel")
 
         middle_row = QHBoxLayout()
@@ -288,6 +296,8 @@ class AddApplicationOverlay(QWidget):
         self.status = NoScrollComboBox()
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
+        self.status.currentTextChanged.connect(self._on_status_changed)
+
         self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
@@ -420,6 +430,8 @@ class AddApplicationOverlay(QWidget):
         self._base_style = ""
         self._error_style = "border: 2px solid #dc3545 !important;"
 
+        self.status.setCurrentIndex(1)
+
     def _create_label(self, text: str, required: bool = False) -> QLabel:
         """Create a form label with optional required indicator."""
         label_text = f"{text} *" if required else text
@@ -430,6 +442,21 @@ class AddApplicationOverlay(QWidget):
         super().showEvent(event)
         self._fit_to_parent()
         self.position.setFocus()
+
+    def _on_status_changed(self, text: str) -> None:
+        """Disable and clear date_applied when status is 'Not Applied'."""
+        is_not_applied = (text == "Not Applied")
+        if is_not_applied:
+            # Clear to minimum sentinel so it shows the special empty text
+            self.date_applied.setSpecialValueText(" ")
+            self.date_applied.setDate(self.date_applied.minimumDate())
+            self.date_applied.setEnabled(False)
+        else:
+            self.date_applied.setSpecialValueText("")
+            # Restore today's date only if still at the sentinel minimum
+            if self.date_applied.date() == self.date_applied.minimumDate():
+                self.date_applied.setDate(QDate.currentDate())
+            self.date_applied.setEnabled(True)
 
     def _on_work_arrangement_changed(self, text: str) -> None:
         is_hybrid = (text == "Hybrid")
@@ -497,6 +524,11 @@ class AddApplicationOverlay(QWidget):
         if not is_valid:
             return
 
+        if status == "Not Applied":
+            date_applied_value = None
+        else:
+            date_applied_value = self.date_applied.date().toString(Qt.DateFormat.ISODate) or None
+
         payload = {
             "company": company,
             "position": position,
@@ -507,7 +539,7 @@ class AddApplicationOverlay(QWidget):
             "location": self.location.text().strip() or None,
             "source": self.job_source.text().strip() or None,
             "job_type": job_type,
-            "date_applied": self.date_applied.date().toString(Qt.DateFormat.ISODate) or None,
+            "date_applied": date_applied_value,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
             "salary_range": self.salary_range.text().strip() or None,
@@ -806,6 +838,8 @@ class EditApplicationOverlay(QWidget):
         current_status = (self.job.get("status") or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
+        self.status.currentTextChanged.connect(self._on_status_changed)
+
         self.work_arrangement = NoScrollComboBox()
         self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
         self.work_arrangement.setObjectName("formCombo")
@@ -834,9 +868,12 @@ class EditApplicationOverlay(QWidget):
         self.location.setObjectName("formInput")
         self.job_source = QLineEdit(self.job.get("job_source") or "")
         self.job_source.setObjectName("formInput")
-        date = QDate.fromString(self.job.get("date_applied"), Qt.DateFormat.ISODate)
-        self.date_applied = NoScrollDateEdit(date=date)
+
+        existing_date_str = self.job.get("date_applied") or ""
+        date = QDate.fromString(existing_date_str, Qt.DateFormat.ISODate)
+        self.date_applied = NoScrollDateEdit(date=date if date.isValid() else None)
         self.date_applied.setObjectName("formDate")
+
         self.contact_name = QLineEdit(self.job.get("contact_name") or "")
         self.contact_name.setObjectName("formInput")
         self.contact_email = QLineEdit(self.job.get("contact_email") or "")
@@ -940,10 +977,25 @@ class EditApplicationOverlay(QWidget):
         self._base_style = ""
         self._error_style = "border: 2px solid #dc3545 !important;"
 
+        self._on_status_changed(self.status.currentText())
+
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_parent()
         self.position.setFocus()
+
+    def _on_status_changed(self, text: str) -> None:
+        """Disable and clear date_applied when status is 'Not Applied'."""
+        is_not_applied = (text == "Not Applied")
+        if is_not_applied:
+            self.date_applied.setSpecialValueText(" ")
+            self.date_applied.setDate(self.date_applied.minimumDate())
+            self.date_applied.setEnabled(False)
+        else:
+            self.date_applied.setSpecialValueText("")
+            if self.date_applied.date() == self.date_applied.minimumDate():
+                self.date_applied.setDate(QDate.currentDate())
+            self.date_applied.setEnabled(True)
 
     def _on_work_arrangement_changed(self, text: str) -> None:
         is_hybrid = (text == "Hybrid")
@@ -1024,6 +1076,11 @@ class EditApplicationOverlay(QWidget):
         if not is_valid:
             return
 
+        if status == "Not Applied":
+            date_applied_value = None
+        else:
+            date_applied_value = self.date_applied.date().toString(Qt.DateFormat.ISODate) or None
+
         # Read current values
         current = {
             "company": company,
@@ -1035,7 +1092,7 @@ class EditApplicationOverlay(QWidget):
             "location": self.location.text().strip() or None,
             "source": self.job_source.text().strip() or None,
             "job_type": job_type,
-            "date_applied": self.date_applied.date().toString(Qt.DateFormat.ISODate) or None,
+            "date_applied": date_applied_value,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
             "salary_range": self.salary_range.text().strip() or None,
@@ -1442,6 +1499,11 @@ class TrackerPage(QWidget):
             QLineEdit#formInput:focus, QTextEdit#formTextEdit:focus, QDateEdit#formDate:focus {{
                 border: 1px solid {highlight.name()};
             }}
+            QDateEdit#formDate:disabled {{
+                background-color: {button_bg.darker(105).name()};
+                color: {text_color.darker(150).name()};
+                border: 1px solid {border_color.darker(110).name()};
+            }}
             
             /* ==================== DATE EDIT CALENDAR ICON ==================== */
             QDateEdit#formDate::down-arrow {{
@@ -1694,25 +1756,30 @@ class TrackerPage(QWidget):
         self.job_card_widgets = []
 
     def _sort_cards(self):
-        """Re-order card widgets in body_layout according to the sort combo."""
-        option = self.sort_combo.currentText()
+        """Re-order card widgets in body_layout according to the sort combo.
 
+        "Not Applied" jobs (no date_applied) are always treated as the newest
+        entry so they sort to the top when descending and to the bottom when
+        ascending — consistent with the idea that they haven't been submitted yet.
+        """
+        option = self.sort_combo.currentText()
         descending = "\u2193" in option  # ↓ = descending (newest first)
 
         if "Date applied" in option:
-            # Use Julian day (int) so Python can compare values directly.
-            # Cards with missing/invalid dates are pushed to the end.
-            _sentinel = 0 if descending else 99999999
+            # "Not Applied" jobs get the sentinel so they always appear at the
+            # "newest" end: max value for descending sort, min value for ascending.
+            sentinel_no_date = _SORT_SENTINEL_NOT_APPLIED if descending else 0
+
             def sort_key(w):
+                if not w.date_applied:
+                    return sentinel_no_date
                 d = QDate.fromString(w.date_applied, Qt.DateFormat.ISODate)
-                return d.toJulianDay() if d.isValid() else _sentinel
+                return d.toJulianDay() if d.isValid() else sentinel_no_date
         else:  # Last update
             def sort_key(w):
-                # last_update is an ISO datetime string; lexicographic == chronological.
                 return w.last_update or ""
 
-        reverse = descending
-        sorted_widgets = sorted(self.job_card_widgets, key=sort_key, reverse=reverse)
+        sorted_widgets = sorted(self.job_card_widgets, key=sort_key, reverse=descending)
 
         # Re-insert in new order (the stretch item stays at the end)
         for i, w in enumerate(sorted_widgets):
@@ -1760,6 +1827,8 @@ class TrackerPage(QWidget):
             )
 
             # ── date range filter ────────────────────────────────────────
+            # "Not Applied" jobs have no date — always show them regardless of
+            # the date filter (unless they are excluded by another filter).
             matches_date = True
             if widget.date_applied:
                 card_date = QDate.fromString(widget.date_applied, Qt.DateFormat.ISODate)

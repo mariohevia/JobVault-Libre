@@ -53,7 +53,18 @@ JOB_TYPE_OPTIONS = [
 WORK_ARRANGEMENT_OPTIONS = [
     "On-site", 
     "Hybrid", 
-    "Remote"]
+    "Remote"
+    ]
+
+STATUS_COLORS = {
+    "Not Applied": "#256D6D",
+    "Applied": "#3B82F6",
+    "Interview Scheduled": "#F59E0B",
+    "Interviewed": "#8B5CF6",
+    "Offer": "#2b7a2b",
+    "Rejected": "#EF4444",
+    "Withdrawn": "#6B7280",
+    }
 
 class CVListPage(QWidget):
 
@@ -668,18 +679,55 @@ class TargetApplicationPage(QWidget):
         self.update_completer_hints(self.completer_hints)
 
     def update_jobs_displayed(self, text):
-        # TODO: Implement all things properly similar to tracker.py
+
+        t = (text or "").lower().strip()
+        selected_status = (self.status_filter.currentText() or "").strip()
+        selected_job_type = (self.job_type_filter.currentText() or "").strip()
+        selected_arrangement = (self.arrangement_filter.currentText() or "").strip()
+
+        # Date range: treat the sentinel "no bound" dates as open-ended
+        date_from = self.date_from_filter.date()
+        date_to = self.date_to_filter.date()
+        # If the user left a date at its minimum sentinel, treat as unbounded
+        no_lower_bound = (date_from == QDate(2000, 1, 1))
+
         for i in range(self.job_list.count()):
             item = self.job_list.item(i)
             job = item.data(Qt.ItemDataRole.UserRole)
 
-            matches = (
-                text in (job.get("company") or "").lower()
-                or text in (job.get("position") or "").lower()
-                or text in (job.get("location") or "").lower()
+            matches_text = (
+                (not t)
+                or t in (job.get("company") or "").lower()
+                or t in (job.get("position") or "").lower()
+                or t in (job.get("location") or "").lower()
             )
 
-            item.setHidden(not matches)
+            matches_status = (
+                selected_status == "Any"
+                or job.get("status").strip() == selected_status
+            )
+
+            matches_job_type = (
+                selected_job_type == "Any"
+                or job.get("job_type").strip() == selected_job_type
+            )
+
+            matches_arrangement = (
+                selected_arrangement == "Any"
+                or job.get("work_arrangement").strip() == selected_arrangement
+            )
+
+            matches_date = True
+            if job.get("date_applied"):
+                card_date = QDate.fromString(job.get("date_applied"), Qt.DateFormat.ISODate)
+                if card_date.isValid():
+                    if not no_lower_bound and card_date < date_from:
+                        matches_date = False
+                    if card_date > date_to:
+                        matches_date = False
+            all_matches = (matches_text and matches_status and matches_job_type
+                    and matches_arrangement and matches_date)
+            item.setHidden(not all_matches)
 
     def get_selected_job(self):
         item = self.job_list.currentItem()
