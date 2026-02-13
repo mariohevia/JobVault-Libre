@@ -72,7 +72,7 @@ class JobApplicationCard(QWidget):
         position,
         status,
         location,
-        job_source,
+        source,
         job_type,
         date_applied,
         contact_name,
@@ -95,7 +95,7 @@ class JobApplicationCard(QWidget):
         self.position = position or ""
         self.status = status or ""
         self.location = location or ""
-        self.job_source = job_source or ""
+        self.source = source or ""
         self.job_type = job_type or ""
         self.date_applied = date_applied or ""
         self.contact_name = contact_name or ""
@@ -212,7 +212,7 @@ class JobApplicationCard(QWidget):
                 "position": self.position,
                 "status": self.status,
                 "location": self.location,
-                "job_source": self.job_source,
+                "source": self.source,
                 "job_type": self.job_type,
                 "date_applied": self.date_applied,
                 "contact_name": self.contact_name,
@@ -316,9 +316,9 @@ class AddApplicationOverlay(QWidget):
         self.location = QLineEdit()
         self.location.setObjectName("formInput")
         self.location.setPlaceholderText("e.g., London, UK")
-        self.job_source = QLineEdit()
-        self.job_source.setObjectName("formInput")
-        self.job_source.setPlaceholderText("e.g., LinkedIn")
+        self.source = QLineEdit()
+        self.source.setObjectName("formInput")
+        self.source.setPlaceholderText("e.g., LinkedIn")
         self.date_applied = NoScrollDateEdit()
         self.date_applied.setObjectName("formDate")
         self.contact_name = QLineEdit()
@@ -366,7 +366,7 @@ class AddApplicationOverlay(QWidget):
             (("Job title", True), self.position, ("Company", True), self.company),
             (("Date applied", False), self.date_applied, ("Status", True), self.status),
             (("Job location", False), self.location, ("Job type", False), self.job_type),
-            (("Job source", False), self.job_source, ("Salary range", False), self.salary_range),
+            (("Job source", False), self.source, ("Salary range", False), self.salary_range),
             (("Work arrangment", False), self.work_arrangement, ("Office days", False), self.office_days),
             (("Contact name", False), self.contact_name, ("Contact email", False), self.contact_email),
             ]
@@ -529,6 +529,7 @@ class AddApplicationOverlay(QWidget):
         else:
             date_applied_value = self.date_applied.date().toString(Qt.DateFormat.ISODate) or None
 
+        print(self.source.text(), job_type)
         payload = {
             "company": company,
             "position": position,
@@ -537,7 +538,7 @@ class AddApplicationOverlay(QWidget):
             "office_days": office_days,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
-            "source": self.job_source.text().strip() or None,
+            "source": self.source.text().strip() or None,
             "job_type": job_type,
             "date_applied": date_applied_value,
             "contact_name": self.contact_name.text().strip() or None,
@@ -675,7 +676,7 @@ class ViewApplicationOverlay(QWidget):
             ("Job title", "position", "Company", "company"),
             ("Date applied", "date_applied", "Status", "status"),
             ("Job location", "location", "Job type", "job_type"),
-            ("Job source", "job_source", "Salary range", "salary_range"),
+            ("Job source", "source", "Salary range", "salary_range"),
             ("Work arrangment", "work_arrangement", "Office days", "office_days"),
             ("Contact name", "contact_name", "Contact email", "contact_email"),
         ]
@@ -866,8 +867,8 @@ class EditApplicationOverlay(QWidget):
 
         self.location = QLineEdit(self.job.get("location") or "")
         self.location.setObjectName("formInput")
-        self.job_source = QLineEdit(self.job.get("job_source") or "")
-        self.job_source.setObjectName("formInput")
+        self.source = QLineEdit(self.job.get("source") or "")
+        self.source.setObjectName("formInput")
 
         existing_date_str = self.job.get("date_applied") or ""
         date = QDate.fromString(existing_date_str, Qt.DateFormat.ISODate)
@@ -915,7 +916,7 @@ class EditApplicationOverlay(QWidget):
             ("Job title", self.position, "Company", self.company),
             ("Date applied", self.date_applied, "Status", self.status),
             ("Job location", self.location, "Job type", self.job_type),
-            ("Job source", self.job_source, "Salary range", self.salary_range),
+            ("Job source", self.source, "Salary range", self.salary_range),
             ("Work arrangment", self.work_arrangement, "Office days", self.office_days),
             ("Contact name", self.contact_name, "Contact email", self.contact_email),
             ]
@@ -1090,7 +1091,7 @@ class EditApplicationOverlay(QWidget):
             "office_days": office_days,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
-            "source": self.job_source.text().strip() or None,
+            "source": self.source.text().strip() or None,
             "job_type": job_type,
             "date_applied": date_applied_value,
             "contact_name": self.contact_name.text().strip() or None,
@@ -1706,7 +1707,7 @@ class TrackerPage(QWidget):
                 "position": r[3],
                 "status": r[4],
                 "location": r[5],
-                "job_source": r[6],
+                "source": r[6],
                 "job_type": r[7],
                 "date_applied": r[8],
                 "contact_name": r[9],
