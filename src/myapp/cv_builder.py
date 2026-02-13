@@ -15,8 +15,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QFrame,
     QCompleter,
-    QListWidget, 
-    QListWidgetItem, 
     QAbstractItemView,
 )
 
@@ -374,57 +372,36 @@ class SectionPlaceholderPage(QWidget):
         layout.addWidget(placeholder, stretch=1)
 
 
-class JobApplicationCard(QWidget):
-    # TODO: Implement these widgets
-    def __init__(self, job_data: dict, parent: QWidget | None = None):
-        super().__init__(parent)
-
-        self._job_data = job_data  # store full job info
-
-        self._build_ui()
-
-    def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(4)
-
-        # Job title (position)
-        title = self._job_data.get("position", "Untitled Position")
-
-        self.title_label = QLabel(title)
-        self.title_label.setWordWrap(True)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-
-        layout.addWidget(self.title_label)
-
-
 class TargetApplicationPage(QWidget):
-    """Placeholder page for each CV section"""
-    
+    """Page to select the targeted job application for the CV"""
+
     ROWS_COMPLETER = 2
 
+    TABLE_HEADERS = ["Date applied", "Position", "Company", "Location", "Status", "Source"]
+    TABLE_COLS = ["date_applied", "position", "company", "location", "status", "source"]
+
     def __init__(
-        self, 
-        db: JobDatabase, 
-        palette: QPalette, 
-        section_name: str, 
+        self,
+        db: JobDatabase,
+        palette: QPalette,
+        section_name: str,
         section_label: str,
-        parent: QWidget | None = None
-        ):
+        parent: QWidget | None = None,
+    ):
         super().__init__(parent)
         self.db = db
         self.palette = palette
         self.section_name = section_name
         self.section_label = section_label
-        
+
         self._build_ui()
-        
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(8)
-        
-        # ── Row 1: Search bar + Add button ─────────────────────────────────
+
+        # ── Row 1: Search bar ───────────────────────────────────────────────
         search_row = QHBoxLayout()
         search_row.setContentsMargins(0, 0, 0, 0)
         search_row.setSpacing(12)
@@ -438,10 +415,9 @@ class TargetApplicationPage(QWidget):
         self.searchbar.textChanged.connect(self.update_jobs_displayed)
         self.searchbar.addAction(
             SEARCH_ICON,
-            QLineEdit.ActionPosition.LeadingPosition
+            QLineEdit.ActionPosition.LeadingPosition,
         )
-        
-        # Adding Completer
+
         self.completer = QCompleter()
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
@@ -454,7 +430,6 @@ class TargetApplicationPage(QWidget):
         )
 
         search_row.addWidget(self.searchbar, stretch=1)
-
         layout.addLayout(search_row)
 
         # ── Row 2: Filter bar ───────────────────────────────────────────────
@@ -462,7 +437,6 @@ class TargetApplicationPage(QWidget):
         filter_row.setContentsMargins(0, 0, 0, 0)
         filter_row.setSpacing(8)
 
-        # Filter icon + label
         filter_icon_label = QLabel()
         filter_icon_label.setPixmap(FILTER_ICON.pixmap(16, 16))
         filter_icon_label.setAlignment(
@@ -475,7 +449,6 @@ class TargetApplicationPage(QWidget):
         filter_row.addWidget(filter_icon_label)
         filter_row.addWidget(filter_by_label)
 
-        # Status filter
         status_label = QLabel("Status")
         status_label.setObjectName("filterLabel")
         self.status_filter = NoScrollComboBox()
@@ -486,14 +459,11 @@ class TargetApplicationPage(QWidget):
         self.status_filter.currentTextChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
         )
-
         filter_row.addWidget(status_label)
         filter_row.addWidget(self.status_filter)
 
-        # Separator
         filter_row.addWidget(self._make_separator())
 
-        # Job type filter
         job_type_label = QLabel("Job type")
         job_type_label.setObjectName("filterLabel")
         self.job_type_filter = NoScrollComboBox()
@@ -504,14 +474,11 @@ class TargetApplicationPage(QWidget):
         self.job_type_filter.currentTextChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
         )
-
         filter_row.addWidget(job_type_label)
         filter_row.addWidget(self.job_type_filter)
 
-        # Separator
         filter_row.addWidget(self._make_separator())
 
-        # Work arrangement filter
         arrangement_label = QLabel("Arrangement")
         arrangement_label.setObjectName("filterLabel")
         self.arrangement_filter = NoScrollComboBox()
@@ -522,14 +489,11 @@ class TargetApplicationPage(QWidget):
         self.arrangement_filter.currentTextChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
         )
-
         filter_row.addWidget(arrangement_label)
         filter_row.addWidget(self.arrangement_filter)
 
-        # Separator
         filter_row.addWidget(self._make_separator())
 
-        # Date applied range filter
         date_label = QLabel("Applied")
         date_label.setObjectName("filterLabel")
         date_from_label = QLabel("from")
@@ -542,10 +506,10 @@ class TargetApplicationPage(QWidget):
         self.date_from_filter = NoScrollDateEdit()
         self.date_from_filter.setObjectName("filterDate")
         self.date_from_filter.setMinimumHeight(30)
-        self.date_from_filter.setSpecialValueText(" ")   # blank when at minimum
+        self.date_from_filter.setSpecialValueText(" ")
         self.date_from_filter.setMinimumDate(QDate(2000, 1, 1))
         self.date_from_filter.setMaximumDate(today)
-        self.date_from_filter.setDate(QDate(2000, 1, 1))  # default = no lower bound
+        self.date_from_filter.setDate(QDate(2000, 1, 1))
         self.date_from_filter.dateChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
         )
@@ -568,10 +532,8 @@ class TargetApplicationPage(QWidget):
         filter_row.addWidget(self.date_to_filter)
 
         filter_row.addStretch(1)
-
         filter_row.addWidget(self._make_separator())
 
-        # Sort order
         sort_label = QLabel("Order by:")
         sort_label.setObjectName("filterByLabel")
         sort_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
@@ -585,35 +547,55 @@ class TargetApplicationPage(QWidget):
         ])
         self.sort_combo.setMinimumHeight(30)
         self.sort_combo.currentTextChanged.connect(
-            lambda _: self._sort_cards()
+            lambda _: self._sort_table()
         )
-
         filter_row.addWidget(sort_label)
         filter_row.addWidget(self.sort_combo)
 
         layout.addLayout(filter_row)
 
-        # ── Job List ──────────────────────────────────────────────
-        self.job_list = QListWidget()
-        self.job_list.setSelectionMode(
+        # ── Job Table ───────────────────────────────────────────────────────
+        self.job_table = QTableWidget()
+        self.job_table.setColumnCount(len(self.TABLE_HEADERS))
+        self.job_table.setHorizontalHeaderLabels(self.TABLE_HEADERS)
+        self.job_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.job_table.setSelectionMode(
             QAbstractItemView.SelectionMode.SingleSelection
         )
-        self.job_list.setVerticalScrollMode(
+        self.job_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.job_table.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel
         )
-        self.job_list.setHorizontalScrollBarPolicy(
+        self.job_table.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.job_table.verticalHeader().setVisible(False)
+        self.job_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.job_table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.job_table.setWordWrap(False)
 
-        layout.addWidget(self.job_list)
+        fm = self.job_table.fontMetrics()
+        padding = 24
+
+        self.job_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.job_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self.job_table.setColumnWidth(0, fm.horizontalAdvance("DD/MM/YYYY") + padding)
+        self.job_table.setColumnWidth(4, fm.horizontalAdvance("Interview Scheduled") + padding)
+        
+
+        layout.addWidget(self.job_table)
 
         self.query_all_job_apps()
-        self.populate_job_list()
+        self.populate_job_table()
 
-    
+    # ── Helpers ─────────────────────────────────────────────────────────────
+
     @staticmethod
     def _make_separator() -> QFrame:
-        """Return a thin vertical separator line for the filter bar."""
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.VLine)
         sep.setFrameShadow(QFrame.Shadow.Sunken)
@@ -622,32 +604,27 @@ class TargetApplicationPage(QWidget):
         sep.setMinimumHeight(20)
         return sep
 
-    def populate_job_list(self):
-        self.job_list.clear()
+    # ── Data / population ────────────────────────────────────────────────────
+
+    def populate_job_table(self):
+        self.job_table.setRowCount(0)
 
         for job in self.job_applications:
-            item = QListWidgetItem(self.job_list)
+            row = self.job_table.rowCount()
+            self.job_table.insertRow(row)
 
-            # store full job data inside the item
-            item.setData(Qt.ItemDataRole.UserRole, job)
-
-            # create your custom card widget
-            card = JobApplicationCard(job)
-
-            # make row height match card
-            item.setSizeHint(card.sizeHint())
-
-            self.job_list.addItem(item)
-            self.job_list.setItemWidget(item, card)
+            for col, key in enumerate(self.TABLE_COLS):
+                item = QTableWidgetItem(job.get(key) or "")
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if col == 0:
+                    # Anchor the job dict here so get_selected_job can retrieve it
+                    item.setData(Qt.ItemDataRole.UserRole, job)
+                self.job_table.setItem(row, col, item)
 
     def query_all_job_apps(self):
         """Fetch all job applications from the database into self.job_applications."""
         rows = self.db.get_all_jobs()
 
-        # get_all_jobs returns:
-        # (id, company, company_website, position, status, location,
-        #  date_applied, contact_name, contact_email, salary_range,
-        #  job_url, job_description, notes, cv_text, cover_letter_text, last_update)
         self.job_applications = []
         for r in rows:
             self.job_applications.append({
@@ -657,7 +634,7 @@ class TargetApplicationPage(QWidget):
                 "position": r[3],
                 "status": r[4],
                 "location": r[5],
-                "job_source": r[6],
+                "source": r[6],
                 "job_type": r[7],
                 "date_applied": r[8],
                 "contact_name": r[9],
@@ -669,31 +646,28 @@ class TargetApplicationPage(QWidget):
                 "job_description": r[15],
                 "notes": r[16],
                 "last_update": r[19],
-                # TODO: PDFs and extracted text are intentionally ignored in the UI.
             })
 
-        self.job_companies = [j["company"] for j in self.job_applications if j.get("company")]
-        self.job_positions = [j["position"] for j in self.job_applications if j.get("position")]
+        self.job_companies = [j["company"] for j in self.job_applications]
+        self.job_positions = [j["position"] for j in self.job_applications]
         self.job_locations = [j["location"] for j in self.job_applications if j.get("location")]
         self.completer_hints = self.job_companies + self.job_positions + self.job_locations
         self.update_completer_hints(self.completer_hints)
 
-    def update_jobs_displayed(self, text):
+    # ── Filtering / sorting ──────────────────────────────────────────────────
 
+    def update_jobs_displayed(self, text):
         t = (text or "").lower().strip()
         selected_status = (self.status_filter.currentText() or "").strip()
         selected_job_type = (self.job_type_filter.currentText() or "").strip()
         selected_arrangement = (self.arrangement_filter.currentText() or "").strip()
 
-        # Date range: treat the sentinel "no bound" dates as open-ended
         date_from = self.date_from_filter.date()
         date_to = self.date_to_filter.date()
-        # If the user left a date at its minimum sentinel, treat as unbounded
         no_lower_bound = (date_from == QDate(2000, 1, 1))
 
-        for i in range(self.job_list.count()):
-            item = self.job_list.item(i)
-            job = item.data(Qt.ItemDataRole.UserRole)
+        for row in range(self.job_table.rowCount()):
+            job = self.job_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
 
             matches_text = (
                 (not t)
@@ -704,39 +678,72 @@ class TargetApplicationPage(QWidget):
 
             matches_status = (
                 selected_status == "Any"
-                or job.get("status").strip() == selected_status
+                or job["status"].strip() == selected_status
             )
 
             matches_job_type = (
                 selected_job_type == "Any"
-                or job.get("job_type").strip() == selected_job_type
+                or (job.get("job_type") or "").strip() == selected_job_type
             )
 
             matches_arrangement = (
                 selected_arrangement == "Any"
-                or job.get("work_arrangement").strip() == selected_arrangement
+                or (job.get("work_arrangement") or "").strip() == selected_arrangement
             )
 
             matches_date = True
             if job.get("date_applied"):
-                card_date = QDate.fromString(job.get("date_applied"), Qt.DateFormat.ISODate)
+                card_date = QDate.fromString(job["date_applied"], Qt.DateFormat.ISODate)
                 if card_date.isValid():
                     if not no_lower_bound and card_date < date_from:
                         matches_date = False
                     if card_date > date_to:
                         matches_date = False
-            all_matches = (matches_text and matches_status and matches_job_type
-                    and matches_arrangement and matches_date)
-            item.setHidden(not all_matches)
+
+            self.job_table.setRowHidden(
+                row,
+                not (matches_text and matches_status and matches_job_type
+                     and matches_arrangement and matches_date),
+            )
+
+    # ── Selection ────────────────────────────────────────────────────────────
 
     def get_selected_job(self):
-        item = self.job_list.currentItem()
-        if not item:
+        selected = self.job_table.selectedItems()
+        if not selected:
             return None
-        return item.data(Qt.ItemDataRole.UserRole)
+        return self.job_table.item(selected[0].row(), 0).data(Qt.ItemDataRole.UserRole)
+
+    # ── Completer ────────────────────────────────────────────────────────────
 
     def update_completer_hints(self, hints: list[str]):
         self.completer.setModel(QStringListModel(hints))
+
+    def _sort_table(self):
+        text = self.sort_combo.currentText()
+
+        def key_fn(job):
+            if "Date applied" in text:
+                return job.get("date_applied") or ""
+            else:
+                return job.get("last_update") or ""
+
+        reverse = "\u2193" in text
+
+        self.job_applications.sort(key=key_fn, reverse=reverse)
+        self.populate_job_table()
+        self.update_jobs_displayed(self.searchbar.text())
+
+    def refresh(self):
+        """Re-fetch all jobs from the database and repopulate the table."""
+        self.query_all_job_apps()
+        self.populate_job_table()
+        self.update_jobs_displayed(self.searchbar.text())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # widget just became visible
+        self.refresh()
 
 class CVEditorContainer(QWidget):
     """Container for CV editor with persistent top navigation"""
