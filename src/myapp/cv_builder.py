@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QStackedWidget,
     QLabel,
     QPushButton,
@@ -663,7 +664,7 @@ class _ReadonlyItemView(QFrame):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setObjectName("readonlyItemFrame")
 
-        p          = palette
+        p = palette
         highlight  = p.color(QPalette.ColorRole.Highlight)
         border_col = p.color(QPalette.ColorRole.Window).lighter(140)
 
@@ -681,10 +682,10 @@ class _ReadonlyItemView(QFrame):
         if allow_multiple:
             hdr = QHBoxLayout()
             hdr.addStretch()
-            selected     = payload.get("selected_default", False)
-            badge_text   = "Preselected" if selected else "Not preselected"
-            badge_color  = "#10B981" if selected else "#777777"
-            badge        = QLabel(badge_text)
+            selected = payload.get("selected_default", False)
+            badge_text = "Preselected" if selected else "Not preselected"
+            badge_color = "#10B981" if selected else "#777777"
+            badge = QLabel(badge_text)
             badge.setStyleSheet(
                 f"border-radius: 10px; padding: 2px 8px; font-size: 11px;"
                 f" color: #ffffff; background-color: {badge_color};"
@@ -693,11 +694,21 @@ class _ReadonlyItemView(QFrame):
             gb_layout.addLayout(hdr)
 
         # ── Field rows ──────────────────────────────────────────────────────
+        # Single QGridLayout for all fields, mirroring _ItemEditor exactly:
+        # is_multi and layout_width='full' span both columns; 'half' shares a row.
+        form = QGridLayout()
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(8)
+
+        current_row = 0
+        current_col = 0
+
         for fdef in section_fields:
-            fname        = fdef["name"]
-            flabel       = fdef.get("label") or fname
-            is_multi     = bool(fdef.get("allow_multiple", False))
-            raw_value    = payload.get(fname)
+            fname = fdef["name"]
+            flabel = fdef.get("label") or fname
+            is_multi = bool(fdef.get("allow_multiple", False))
+            layout_width = str(fdef.get("layout_width", "full"))
+            raw_value = payload.get(fname)
 
             if is_multi:
                 # ── allow_multiple field: list of entries ──────────────────
@@ -726,8 +737,6 @@ class _ReadonlyItemView(QFrame):
                 for ei, entry in enumerate(entries):
                     entry_row = QHBoxLayout()
                     entry_row.setContentsMargins(8, 0, 0, 0)
-                    val_lbl   = _render_value_readonly(fdef, entry)
-                    entry_row.addWidget(val_lbl, stretch=1)
                     edit_btn  = QPushButton("✎")
                     edit_btn.setObjectName("fieldEditBtn")
                     edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -737,6 +746,8 @@ class _ReadonlyItemView(QFrame):
                         lambda _checked, fn=fname, idx=ei: on_edit_field(fn, idx)
                     )
                     entry_row.addWidget(edit_btn)
+                    val_lbl = _render_value_readonly(fdef, entry)
+                    entry_row.addWidget(val_lbl, stretch=1)
                     block_lay.addLayout(entry_row)
 
                 if not entries:
@@ -744,21 +755,18 @@ class _ReadonlyItemView(QFrame):
                     empty_lbl.setContentsMargins(8, 0, 0, 0)
                     block_lay.addWidget(empty_lbl)
 
-                gb_layout.addWidget(field_block)
+                widget = field_block
 
             else:
-                # ── scalar field: label + value + ✎ on the right ──────────
-                field_row = QHBoxLayout()
-                field_row.setSpacing(8)
+                # ── scalar field: ✎ on the left, then label + value ────────
+                cell = QWidget()
+                cell_lay = QVBoxLayout(cell)
+                cell_lay.setContentsMargins(0, 0, 0, 0)
+                cell_lay.setSpacing(6)
+                cell_lay.addWidget(QLabel(f"<b>{flabel}</b>"))
 
-                label_val = QWidget()
-                lv_lay    = QVBoxLayout(label_val)
-                lv_lay.setContentsMargins(0, 0, 0, 0)
-                lv_lay.setSpacing(2)
-                lv_lay.addWidget(QLabel(f"<b>{flabel}</b>"))
-                lv_lay.addWidget(_render_value_readonly(fdef, raw_value))
-
-                field_row.addWidget(label_val, stretch=1)
+                edit_val = QWidget()
+                edit_val_lay = QHBoxLayout(edit_val)
 
                 edit_btn = QPushButton("✎")
                 edit_btn.setObjectName("fieldEditBtn")
@@ -768,9 +776,29 @@ class _ReadonlyItemView(QFrame):
                 edit_btn.clicked.connect(
                     lambda _checked, fn=fname: on_edit_field(fn, None)
                 )
-                field_row.addWidget(edit_btn, alignment=Qt.AlignmentFlag.AlignTop)
+                edit_val_lay.addWidget(edit_btn, alignment=Qt.AlignmentFlag.AlignTop)
 
-                gb_layout.addLayout(field_row)
+                edit_val_lay.setContentsMargins(0, 0, 0, 0)
+                edit_val_lay.setSpacing(2)
+                edit_val_lay.addWidget(_render_value_readonly(fdef, raw_value))
+                cell_lay.addWidget(edit_val, stretch=1)
+
+                widget = cell
+
+            if layout_width == "full" or is_multi:
+                if current_col != 0:
+                    current_row += 1
+                    current_col = 0
+                form.addWidget(widget, current_row, 0, 1, 2)
+                current_row += 1
+            else:  # 'half'
+                form.addWidget(widget, current_row, current_col)
+                current_col += 1
+                if current_col >= 2:
+                    current_row += 1
+                    current_col = 0
+
+        gb_layout.addLayout(form)
 
         outer.addWidget(self.group_box)
 
