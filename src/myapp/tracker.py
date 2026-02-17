@@ -529,7 +529,6 @@ class AddApplicationOverlay(QWidget):
         else:
             date_applied_value = self.date_applied.date().toString(Qt.DateFormat.ISODate) or None
 
-        print(self.source.text(), job_type)
         payload = {
             "company": company,
             "position": position,
