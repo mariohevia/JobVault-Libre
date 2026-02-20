@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 
 from myapp.QToggle import QToggle
 from myapp.utils import (
+    field_default_value,
     load_cv_config, 
     load_full_config, 
     save_full_config,
@@ -51,40 +52,6 @@ EDIT_ICON = QIcon.fromTheme("document-edit")
 
 SectionDef = Dict[str, Any]
 SectionCfg = Dict[str, Any]
-
-
-def _field_default_value(field_def: Dict[str, Any]) -> Any:
-    ftype = field_def.get("type")
-
-    # default_value from YAML if present and non-empty
-    if "default_value" in field_def:
-        dv = field_def.get("default_value")
-        if dv is not None and str(dv).strip() != "":
-            return dv
-
-    if ftype == "year_month":
-        y, m = today_year_month()
-        return {"year": y, "month": m}
-
-    if ftype == "enum":
-        opts = field_def.get("options") or []
-        return opts[0] if isinstance(opts, list) and opts else ""
-
-    if ftype in ("string", "multiline"):
-        return ""
-
-    if ftype == "number":
-        return 0
-
-    if ftype == "object":
-        # build dict for nested fields
-        out = {}
-        for sub in (field_def.get("fields") or []):
-            if isinstance(sub, dict) and sub.get("name"):
-                out[sub["name"]] = _field_default_value(sub)
-        return out
-
-    return ""
 
 
 class SectionSettingsOverlay(QWidget):
@@ -481,7 +448,7 @@ class SectionSettingsOverlay(QWidget):
         for fdef in self._fields_def():
             fname = fdef["name"]
             is_multi = bool(fdef.get("allow_multiple", False))
-            base = _field_default_value(fdef)
+            base = field_default_value(fdef)
 
             if is_multi:
                 out[fname] = [base]
@@ -709,7 +676,7 @@ class _ItemEditor(QFrame):
                     )
             else:
                 if initial is None:
-                    initial = _field_default_value(fdef)
+                    initial = field_default_value(fdef)
                 editor = _SingleFieldEditor(fdef=fdef, initial_value=initial, show_name=show_name, flabel=flabel)
             self._field_editors[fname] = editor
             if layout_width == 'full' or is_multi:
@@ -815,19 +782,19 @@ class _MultiFieldEditor(QWidget):
 
         for entry in (initial_list or []):
             if entry is None:
-                entry = _field_default_value(fdef)
+                entry = field_default_value(fdef)
             self._add_row(value=entry, flabel=flabel, show_name=show_name)
 
         # ensure at least one
         if not self.rows:
-            self._add_row(value=_field_default_value(fdef), flabel=flabel, show_name=show_name)
+            self._add_row(value=field_default_value(fdef), flabel=flabel, show_name=show_name)
 
         add_row = QHBoxLayout()
         add_row.addStretch()
         add_btn = QPushButton("＋ Add another")
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.clicked.connect(lambda: self._add_row(
-            value=_field_default_value(self.fdef), 
+            value=field_default_value(self.fdef), 
             flabel=flabel, 
             show_name=show_name))
         add_btn.setFixedHeight(30)
@@ -1072,7 +1039,7 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
 
         fields = fdef.get("fields") or []
         if not isinstance(value, dict):
-            value = _field_default_value(fdef)
+            value = field_default_value(fdef)
 
         gb._sub_editors = {}  # type: ignore[attr-defined]
 

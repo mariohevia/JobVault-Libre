@@ -28,6 +28,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QDate, QStringListModel, QEvent
 
 from myapp.database import JobDatabase
 from myapp.utils import (
+    field_default_value,
     load_section_names_from_yaml,
     load_cv_config,
     NoScrollDateEdit,
@@ -37,11 +38,9 @@ from myapp.utils import (
 )
 
 from myapp.cv_config import (
-    _field_default_value,
     _build_value_widget,
     _read_value_widget,
     _ItemEditor,
-    SectionSettingsOverlay,
 )
 
 SEARCH_ICON = QIcon.fromTheme("edit-find")
@@ -300,10 +299,10 @@ class _FieldEditOverlay(_BaseOverlay):
         if entry_index is not None:
             # Editing one entry inside an allow_multiple list
             entries = raw if isinstance(raw, list) else []
-            current_value = entries[entry_index] if 0 <= entry_index < len(entries) else _field_default_value(self.fdef)
+            current_value = entries[entry_index] if 0 <= entry_index < len(entries) else field_default_value(self.fdef)
             title = f"Edit {flabel} entry"
         else:
-            current_value = raw if raw is not None else _field_default_value(self.fdef)
+            current_value = raw if raw is not None else field_default_value(self.fdef)
             title = f"Edit {flabel}"
 
         self._add_title_row(title)
@@ -341,7 +340,7 @@ class _FieldEditOverlay(_BaseOverlay):
                 # Patch one entry inside the list
                 entries = list(item.get(self.field_name) or [])
                 while len(entries) <= self.entry_index:
-                    entries.append(_field_default_value(self.fdef))
+                    entries.append(field_default_value(self.fdef))
                 entries[self.entry_index] = new_value
                 item[self.field_name] = entries
             else:
@@ -415,7 +414,7 @@ class _AddEntryOverlay(_BaseOverlay):
 
         self._add_title_row(f"Add {flabel}")
 
-        self._editor = _build_value_widget(self.fdef, _field_default_value(self.fdef))
+        self._editor = _build_value_widget(self.fdef, field_default_value(self.fdef))
         self.dialog_layout.addWidget(self._editor)
 
         self._add_action_buttons(
@@ -538,7 +537,7 @@ class _AddItemOverlay(_BaseOverlay):
         for fdef in self._fields_def():
             fname    = fdef["name"]
             is_multi = bool(fdef.get("allow_multiple", False))
-            base     = _field_default_value(fdef)
+            base     = field_default_value(fdef)
             out[fname] = [base] if is_multi else base
         return out
 
@@ -842,7 +841,6 @@ class SectionSelectionPage(QWidget):
     • allow_multiple fields also show a ＋ Add button per field.
     • A footer "＋ Add <item>" button (only when section allow_multiple=True)
       opens the full new-item overlay (_AddItemOverlay).
-    • A ⚙ Settings button opens SectionSettingsOverlay.
     """
 
     def __init__(
@@ -871,7 +869,6 @@ class SectionSelectionPage(QWidget):
         self._field_overlay:     Optional[_FieldEditOverlay] = None
         self._add_entry_overlay: Optional[_AddEntryOverlay]  = None
         self._add_overlay:       Optional[_AddItemOverlay]   = None
-        self._settings_overlay:  Optional[SectionSettingsOverlay] = None
 
         self._init_ui()
         self._load_and_render()
@@ -905,17 +902,6 @@ class SectionSelectionPage(QWidget):
         title_font.setBold(True)
         self._title_label.setFont(title_font)
         header_row.addWidget(self._title_label, stretch=1)
-
-        self._status_badge = QLabel()
-        self._status_badge.setObjectName("sectionStatusBadge")
-        header_row.addWidget(self._status_badge, stretch=0)
-
-        settings_btn = QPushButton("⚙ Settings")
-        settings_btn.setObjectName("settingsBtn")
-        settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        settings_btn.setFixedHeight(30)
-        settings_btn.clicked.connect(self._open_settings_overlay)
-        header_row.addWidget(settings_btn)
 
         self.main_layout.addLayout(header_row)
 
@@ -1004,15 +990,6 @@ class SectionSelectionPage(QWidget):
         default_title  = self.section_def.get("default_title") or self.section_name.title()
         title          = section_cfg.get("title_override") or default_title
         self._title_label.setText(title)
-
-        enabled      = section_cfg.get("enabled", True)
-        status_text  = "Enabled" if enabled else "Hidden"
-        badge_color  = "#10B981" if enabled else "#777777"
-        self._status_badge.setText(status_text)
-        self._status_badge.setStyleSheet(
-            f"border-radius: 10px; padding: 2px 8px; font-size: 11px;"
-            f" color: #ffffff; background-color: {badge_color};"
-        )
 
         desc = (self.section_def.get("description") or "").strip()
         self._desc_label.setText(desc)
@@ -1113,22 +1090,6 @@ class SectionSelectionPage(QWidget):
         self._add_overlay.show()
         self._add_overlay.raise_()
 
-    def _open_settings_overlay(self) -> None:
-        if self._settings_overlay is not None:
-            self._settings_overlay.deleteLater()
-            self._settings_overlay = None
-
-        self._settings_overlay = SectionSettingsOverlay(
-            parent=self,
-            palette=self.palette_ref,
-            section_def=self.section_def,
-            section_cfg=self._load_section_cfg(),
-            config_path=self.config_path,
-            on_saved=self._on_settings_saved,
-        )
-        self._settings_overlay.show()
-        self._settings_overlay.raise_()
-
     # ------------------------------------------------------------------
     # Callbacks
     # ------------------------------------------------------------------
@@ -1151,10 +1112,13 @@ class SectionSelectionPage(QWidget):
             self._field_overlay,
             self._add_entry_overlay,
             self._add_overlay,
-            self._settings_overlay,
         ):
             if overlay is not None and overlay.isVisible():
                 overlay.setGeometry(self.rect())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._load_and_render()
 
 
 # ---------------------------------------------------------------------------
@@ -1188,7 +1152,7 @@ class CVListPage(QWidget):
         title_label = QLabel("Curriculum Vitae")
         title_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         title_label.setStyleSheet("font-size: 18px; font-weight: 600;")
-        add_button = QPushButton("Create CV")
+        add_button = QPushButton("Create new CV")
         add_button.setFixedHeight(32)
         add_button.clicked.connect(self._on_create_cv)
         top_bar.addWidget(title_label)
@@ -1260,11 +1224,11 @@ class CVListPage(QWidget):
 
 class CVTopNavigator(QWidget):
     section_selected = pyqtSignal(str)
-    back_clicked     = pyqtSignal()
+    back_clicked = pyqtSignal()
 
     def __init__(self, section_defs: list, parent: QWidget | None = None):
         super().__init__(parent)
-        self.section_defs    = section_defs
+        self.section_defs = section_defs
         self.current_section = None
         self._build_ui()
 
@@ -1278,7 +1242,7 @@ class CVTopNavigator(QWidget):
         back_btn.clicked.connect(self.back_clicked.emit)
         back_btn.setFixedHeight(32)
         back_btn.setFixedWidth(80)
-        title_label = QLabel("Title:")
+        title_label = QLabel("CV title:")
         title_label.setStyleSheet("font-weight: 600;")
         self.title_input = QLineEdit()
         self.title_input.setPlaceholderText("Enter CV title")
@@ -1297,7 +1261,7 @@ class CVTopNavigator(QWidget):
 
         self._create_nav_button("target_application", "Target Application", nav_row)
         for section_def in self.section_defs:
-            section_name  = section_def.get("name", "")
+            section_name  = section_def.get("name")
             section_label = section_def.get("default_title", section_name)
             self._create_nav_button(section_name, section_label, nav_row)
         self._create_nav_button("reorder_sections", "Reorder", nav_row)
@@ -1649,25 +1613,46 @@ class CVEditorContainer(QWidget):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.db      = db
+        self.db = db
         self.palette = palette
-        self.paths   = paths
+        self.paths = paths
         self.section_defs = []
         self.cv_data = {}
+
+    def load_cv_ui(self) -> None:
+        self._teardown_ui()
         self._load_sections()
         self._build_ui()
 
+    def _teardown_ui(self) -> None:
+        existing_layout = self.layout()
+        if existing_layout is not None:
+            while existing_layout.count():
+                item = existing_layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+            # Delete the layout itself
+            QWidget().setLayout(existing_layout)
+
+        # Reset state
+        self.section_pages = {}
+        self.section_defs = []
+        self.current_cv = {}
+
     def _load_sections(self) -> None:
-        all_defs = load_section_names_from_yaml()
-        cv_cfg   = load_cv_config(self.paths.get("config"))
-        order    = cv_cfg.get("section_order")
-        if order:
-            defs_by_name    = {d["name"]: d for d in all_defs}
-            self.section_defs = [defs_by_name[n] for n in order if n in defs_by_name]
+        if self.cv_data:
+            # TODO: Handle when there is cv_data
+            pass
         else:
-            self.section_defs = all_defs
-        self.user_profile          = cv_cfg.get("sections", {})
-        self._section_defs_by_name = {d["name"]: d for d in self.section_defs}
+            all_defs = load_section_names_from_yaml()
+            cv_cfg = load_cv_config(self.paths.get("config"))
+            order = cv_cfg.get("section_order")
+            defs_by_name = {d["name"]: d for d in all_defs}
+            self.section_defs = [defs_by_name[n] for n in order if n in defs_by_name]
+            self.current_cv = cv_cfg.copy()
+            self.section_defs = [sec for sec in self.section_defs if self.current_cv['sections'][sec['name']]['enabled']]
+            self._section_defs_by_name = {d["name"]: d for d in self.section_defs}
 
     def _build_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -1752,6 +1737,7 @@ class CVBuilderPage(QWidget):
         self.main_page.create_cv_clicked.connect(self._show_cv_editor)
 
         self.editor_container = CVEditorContainer(db, palette, paths, self)
+        # TODO: Delete all the information from the CVEditorContainer when returning to main list
         self.editor_container.back_to_list.connect(self._show_main_list)
 
         self.subpages.addWidget(self.main_page)
@@ -1762,4 +1748,5 @@ class CVBuilderPage(QWidget):
 
     def _show_cv_editor(self, cv: Path | None = None) -> None:
         self.editor_container.set_cv_information(cv)
+        self.editor_container.load_cv_ui()
         self.subpages.setCurrentWidget(self.editor_container)

@@ -23,7 +23,25 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtCore import QDate, QMimeData
 
-from myapp.exceptions import ConfigurationFormatError
+from myapp.exceptions import ConfigurationFormatError, ConfigurationMissingKeyError
+
+# TODO: Use this in all config variables because the config should never miss a
+# key in the code, otherwise something went wrong.
+class ConfigDict(dict):
+    """Dictionary that raises AppError with troubleshooting steps on missing keys."""
+
+    def _raise_missing(self, key):
+        raise ConfigurationMissingKeyError(
+            message=f"Missing configuration key: '{key}'"
+            )
+
+    def __missing__(self, key):
+        self._raise_missing(key)
+
+    def get(self, key, default=None):
+        if key not in self:
+            self._raise_missing(key)
+        return super().get(key)
 
 class BaseColourTextEdit(QTextEdit):
 
@@ -135,16 +153,102 @@ def save_full_config(config_path: str, full_cfg: Dict[str, Any]) -> None:
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(full_cfg, f, indent=2, ensure_ascii=False)
 
+def field_default_value(field_def: Dict[str, Any]) -> Any:
+    ftype = field_def.get("type")
+
+    # default_value from YAML if present and non-empty
+    if "default_value" in field_def:
+        dv = field_def.get("default_value")
+        if dv is not None and str(dv).strip() != "":
+            return dv
+
+    if ftype == "year_month":
+        y, m = today_year_month()
+        return {"year": y, "month": m}
+
+    if ftype == "enum":
+        opts = field_def.get("options") or []
+        return opts[0] if isinstance(opts, list) and opts else ""
+
+    if ftype in ("string", "multiline"):
+        return ""
+
+    if ftype == "number":
+        return 0
+
+    if ftype == "object":
+        # build dict for nested fields
+        out = {}
+        for sub in (field_def.get("fields") or []):
+            if isinstance(sub, dict) and sub.get("name"):
+                out[sub["name"]] = field_default_value(sub)
+        return out
+
+    return ""
+
+def create_empty_config(section_defs: list[dict] | None = None) -> dict:
+    """
+    Creates an empty config dict matching the structure expected by the app.
+    
+    :param section_defs: list of section definition dicts (from load_section_names_from_yaml).
+                         If None, sections will be an empty dict.
+    """
+    sections = {}
+
+    if section_defs:
+        for section_def in section_defs:
+            section_name = section_def.get("name")
+            if not section_name:
+                continue
+
+            fields = [f for f in (section_def.get("fields") or []) if isinstance(f, dict) and f.get("name")]
+            allow_multiple = bool(section_def.get("allow_multiple", False))
+
+            # Build default item payload
+            item_payload = {}
+            if allow_multiple:
+                item_payload["selected_default"] = True
+
+            for fdef in fields:
+                fname = fdef["name"]
+                is_multi = bool(fdef.get("allow_multiple", False))
+                base = field_default_value(fdef)
+                item_payload[fname] = [base] if is_multi else base
+
+            # Build field_visibility
+            def build_field_visibility(fields):
+                visibility = {}
+                for fdef in fields:
+                    fname = fdef["name"]
+                    if fdef.get("type") == "object":
+                        sub_vis = build_field_visibility(fdef.get("fields") or [])
+                        sub_vis["_visible"] = True
+                        visibility[fname] = sub_vis
+                    else:
+                        visibility[fname] = True
+                return visibility
+
+            sections[section_name] = {
+                "enabled": True,
+                "preselected": True,
+                "items": [item_payload],
+                "field_visibility": build_field_visibility(fields),
+                }
+
+    return {
+        "cv_config": {
+            "section_order": [s["name"] for s in (section_defs or []) if s.get("name")],
+            "sections": sections,
+            }
+        }
+
 def load_full_config(config_path):
     if not config_path:
         raise RuntimeError("Configuration path not found")
 
     if not os.path.exists(config_path):
-        # TODO: create an empty config with all the proper sections and default values from the YAML
-        empty_config = {
-            "cv_config":{"sections": {}}
-            }
-
+        section_defs = load_section_names_from_yaml()
+        empty_config = create_empty_config(section_defs)
         save_full_config(config_path, empty_config)
         return empty_config
     
