@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QFrame,
     QStackedWidget,
-)
+    )
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QPixmap, QGuiApplication, QFont
@@ -36,7 +36,7 @@ class FatalErrorDialog(QDialog):
         "Restart the application",
         "Update to the latest version if available",
         "Check if your disk has sufficient space"
-    ]
+        ]
 
     def __init__(
         self, 
@@ -57,13 +57,12 @@ class FatalErrorDialog(QDialog):
         self.setModal(True)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
-        # Keep it on top and remove the help button.
         self.setWindowFlags(
             Qt.WindowType.Dialog
             | Qt.WindowType.WindowTitleHint
             | Qt.WindowType.CustomizeWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-        )
+            )
 
         layout = QVBoxLayout(self)
 
@@ -74,7 +73,6 @@ class FatalErrorDialog(QDialog):
         title_font.setBold(True)
         title.setFont(title_font)
 
-        # Troubleshooting section
         troubleshoot_label = QLabel("<b>Before reporting, please try:</b>")
         troubleshoot_label.setWordWrap(True)
         
@@ -143,18 +141,15 @@ def install_exception_hook() -> None:
 
 class MainWindow(QMainWindow):
 
-    ROWS_COMPLETER = 2
-
     def __init__(self, user_paths):
         super().__init__()
         self.setWindowTitle("JobVault Libre")
 
         # Minimum size so the header always has room
-        # self.setMinimumSize(820, 520)
         self.resize(1024,768)
         self.setMinimumWidth(450)
 
-        # --- Database ---
+        # --- Jobs Database ---
         self.user_paths = user_paths
         self.db = JobDatabase(self.user_paths["db"])
         
