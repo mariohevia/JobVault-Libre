@@ -325,9 +325,9 @@ class _FieldEditOverlay(_BaseOverlay):
 
         new_value = _read_value_widget(self.fdef, self._editor)
 
-        full_cfg   = load_full_config(self.config_path)
-        cv_config  = full_cfg.get("cv_config", {})
-        sections   = cv_config.get("sections", {})
+        full_cfg = load_full_config(self.config_path)
+        cv_config = full_cfg.get("cv_config", {})
+        sections = cv_config.get("sections", {})
 
         def _patch_section(sec: dict) -> dict:
             sec = dict(sec)
@@ -853,22 +853,23 @@ class SectionSelectionPage(QWidget):
     ):
         super().__init__(parent)
 
-        self.palette_ref   = palette
+        self.palette_ref = palette
+        self.cv_container = parent
         if not isinstance(section_def, dict):
             raise TypeError(
                 f"SectionSelectionPage: section_def must be a dict, got "
                 f"{type(section_def).__name__!r}: {section_def!r}."
             )
-        self.section_def   = dict(section_def)
-        self.config_path   = config_path
+        self.section_def = dict(section_def)
+        self.config_path = config_path
         self.on_item_saved = on_item_saved
 
-        self.section_name   = (self.section_def.get("name") or "").strip()
+        self.section_name = (self.section_def.get("name") or "").strip()
         self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
 
-        self._field_overlay:     Optional[_FieldEditOverlay] = None
+        self._field_overlay: Optional[_FieldEditOverlay] = None
         self._add_entry_overlay: Optional[_AddEntryOverlay]  = None
-        self._add_overlay:       Optional[_AddItemOverlay]   = None
+        self._add_overlay: Optional[_AddItemOverlay]   = None
 
         self._init_ui()
         self._load_and_render()
@@ -943,8 +944,8 @@ class SectionSelectionPage(QWidget):
         self._apply_stylesheet()
 
     def _apply_stylesheet(self) -> None:
-        p            = self.palette_ref
-        highlight    = p.color(QPalette.ColorRole.Highlight)
+        p = self.palette_ref
+        highlight = p.color(QPalette.ColorRole.Highlight)
         border_color = p.color(QPalette.ColorRole.Window).lighter(140)
 
         self.setStyleSheet(f"""
@@ -979,16 +980,16 @@ class SectionSelectionPage(QWidget):
     # ------------------------------------------------------------------
 
     def _load_section_cfg(self) -> SectionCfg:
-        cv_cfg = load_cv_config(self.config_path)
-        return cv_cfg.get("sections", {}).get(self.section_name, {})
+        cv_cfg = self.cv_container.get_current_cv()
+        return cv_cfg.get("sections").get(self.section_name)
 
     def _load_and_render(self) -> None:
         self._render(self._load_section_cfg())
 
     def _render(self, section_cfg: SectionCfg) -> None:
         # Header
-        default_title  = self.section_def.get("default_title") or self.section_name.title()
-        title          = section_cfg.get("title_override") or default_title
+        default_title = self.section_def.get("default_title") or self.section_name.title()
+        title = section_cfg.get("title_override") or default_title
         self._title_label.setText(title)
 
         desc = (self.section_def.get("description") or "").strip()
@@ -1278,14 +1279,24 @@ class CVTopNavigator(QWidget):
         btn.setFixedHeight(28)
         btn.setCheckable(True)
         btn.clicked.connect(lambda: self._on_nav_clicked(section_name))
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet("""
             QPushButton {
-                background-color: transparent; border: none;
-                padding: 6px 12px; font-size: 13px;
-                border-top-left-radius: 6px; border-top-right-radius: 6px;
-                border-bottom-left-radius: 0px; border-bottom-right-radius: 0px;
+                background-color: transparent;
+                border: 2px solid palette(mid);
+                border-bottom: none;
+                padding: 6px 12px;
+                font-size: 13px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
             }
-            QPushButton:hover { background-color: palette(alternate-base); }
+            QPushButton:hover {
+                background-color: palette(alternate-base);
+                border: 2px solid palette(mid);
+                border-bottom: none;
+            }
             QPushButton:checked {
                 background-color: palette(highlight);
                 color: palette(highlighted-text); font-weight: 600;
@@ -1353,9 +1364,9 @@ class TargetApplicationPage(QWidget):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
-        self.db            = db
-        self.palette       = palette
-        self.section_name  = section_name
+        self.db = db
+        self.palette = palette
+        self.section_name = section_name
         self.section_label = section_label
         self._build_ui()
 
@@ -1391,7 +1402,7 @@ class TargetApplicationPage(QWidget):
         filter_row = QHBoxLayout()
         filter_row.setContentsMargins(0, 0, 0, 0)
         filter_row.setSpacing(8)
-        filter_row.addWidget(QLabel())   # icon placeholder
+        filter_row.addWidget(QLabel())
         filter_by_label = QLabel("Filter by:")
         filter_by_label.setObjectName("filterByLabel")
         filter_by_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
@@ -1711,6 +1722,15 @@ class CVEditorContainer(QWidget):
     def set_cv_information(self, cv: Path | None = None) -> None:
         if cv is None:
             return
+
+    def save_cv_information(self) -> None:
+        return
+
+    def get_current_cv(self) -> dict:
+        return self.current_cv
+
+    def update_current_cv(self, updated_cv: dict) -> None:
+        self.current_cv = updated_cv
 
 
 class CVBuilderPage(QWidget):
