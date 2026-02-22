@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QStackedWidget,
     )
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QGuiApplication, QFont
 
@@ -25,7 +24,7 @@ from myapp.cv_builder import CVBuilderPage
 from myapp.support_project import SupportPage
 from myapp.utils import get_app_paths_for_user
 from myapp.exceptions import AppError
-from myapp.icons import LogoPixmap, LogoIcon
+from myapp.icons import LogoIcon
 
 class FatalErrorDialog(QDialog):
     """
@@ -195,7 +194,7 @@ class MainWindow(QMainWindow):
         nav_layout.setSpacing(0)
 
         logo_label = QLabel()
-        pixmap = LogoPixmap()
+        pixmap = LogoIcon().pixmap(42, 42)
         logo_label.setPixmap(
             pixmap.scaled(
                 42, 42,
@@ -268,8 +267,10 @@ class MainWindow(QMainWindow):
 
         # TODO: Ensure that the colours used here fit for every theme or use a
         # theme based colour for everything
-        self.setStyleSheet("""
-            /* Nav buttons only */
+        self.setStyleSheet(self._get_stylesheet())
+
+    def _get_stylesheet(self) -> str:
+        return """
             QPushButton[nav="true"] {
                 background: transparent;
                 border: none;
@@ -279,54 +280,44 @@ class MainWindow(QMainWindow):
                 font-weight: 500;
                 color: palette(windowText);
             }
-
-            /* Subtle hover: use Highlight with transparency */
             QPushButton[nav="true"]:hover {
-                background: rgba(127, 127, 127, 23);
+                background: palette(midlight);
             }
-
-            /* Pressed: slightly stronger */
             QPushButton[nav="true"]:pressed {
-                background: rgba(127, 127, 127, 28);
+                background: palette(mid);
             }
-
-            /* Disabled */
             QPushButton[nav="true"]:disabled {
-                color: rgba(127, 127, 127, 140);
+                color: palette(placeholderText);
                 background: transparent;
             }
-
-            /* Left indicator bar */
             QPushButton[nav="true"]:checked {
                 font-weight: 600;
                 background:
                     qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                    stop:0 palette(highlight),
+                                    stop:0    palette(highlight),
                                     stop:0.03 palette(highlight),
-                                    stop:0.031 rgba(0,0,0,0),
-                                    stop:1 rgba(127, 127, 127, 18));
+                                    stop:0.031 transparent,
+                                    stop:1    palette(window));
             }
-
-            /* Keep hover/press visible even when checked */
             QPushButton[nav="true"]:checked:hover {
                 background:
                     qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                    stop:0 palette(highlight),
+                                    stop:0    palette(highlight),
                                     stop:0.04 palette(highlight),
-                                    stop:0.041 rgba(0,0,0,0),
-                                    stop:1 rgba(127,127,127,23));
+                                    stop:0.041 transparent,
+                                    stop:1    palette(midlight));
             }
             QPushButton[nav="true"]:checked:pressed {
                 background:
                     qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                    stop:0 palette(highlight),
+                                    stop:0    palette(highlight),
                                     stop:0.04 palette(highlight),
-                                    stop:0.041 rgba(0,0,0,0),
-                                    stop:1 rgba(127,127,127,28));
+                                    stop:0.041 transparent,
+                                    stop:1    palette(mid));
             }
-            """)
+        """
 
-    def _switch_page(self, page: QWidget, clicked_button: QPushButton):
+    def _switch_page(self, page: QWidget, clicked_button: QPushButton) -> None:
         for btn in (
             self.btn_applications, 
             self.btn_profile, 
@@ -337,7 +328,7 @@ class MainWindow(QMainWindow):
 
         self.stack.setCurrentWidget(page)
         
-    def closeEvent(self, event):
+    def closeEvent(self, event) -> None:
         try:
             self.db.close()
         finally:

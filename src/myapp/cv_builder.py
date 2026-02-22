@@ -31,12 +31,10 @@ from myapp.utils import (
     field_default_value,
     load_section_names_from_yaml,
     load_cv_config,
-    NoScrollDateEdit,
-    NoScrollComboBox,
     load_full_config,
     save_full_config,
 )
-
+from myapp.widgets import NoScrollDateEdit, NoScrollComboBox
 from myapp.cv_config import (
     _build_value_widget,
     _read_value_widget,

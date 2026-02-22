@@ -27,7 +27,6 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QAbstractItemView,
 )
-
 from myapp.QToggle import QToggle
 from myapp.utils import (
     field_default_value,
@@ -37,8 +36,7 @@ from myapp.utils import (
     today_year_month,
     load_section_names_from_yaml,
 )
-
-from myapp.utils import NoScrollComboBox
+from myapp.widgets import NoScrollComboBox
 
 # TODO: Do a fail safe if the yml files are wrong.
 # TODO: Decide whether "Profile" is an appropriate name

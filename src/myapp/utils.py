@@ -8,21 +8,6 @@ from pathlib import Path
 from datetime import date
 from typing import Any, Dict, Tuple
 
-from PyQt6.QtWidgets import (
-    QDateEdit,
-    QComboBox,
-    QAbstractSpinBox,
-    QTextEdit,
-)
-from PyQt6.QtGui import (
-    QIcon, 
-    QTextDocumentFragment, 
-    QTextCursor, 
-    QTextCharFormat, 
-    QPalette,
-)
-from PyQt6.QtCore import QDate, QMimeData
-
 from myapp.exceptions import ConfigurationFormatError, ConfigurationMissingKeyError
 
 # TODO: Use this in all config variables because the config should never miss a
@@ -43,63 +28,6 @@ class ConfigDict(dict):
             self._raise_missing(key)
         return super().get(key)
 
-class BaseColourTextEdit(QTextEdit):
-
-    def insertFromMimeData(self, source: QMimeData):
-        cursor = self.textCursor()
-        cursor.beginEditBlock()
-
-        # Range that will be replaced (or insertion point if no selection)
-        start = cursor.selectionStart() if cursor.hasSelection() else cursor.position()
-
-        # Insert rich content as-is
-        if source.hasHtml():
-            frag = QTextDocumentFragment.fromHtml(source.html())
-            cursor.insertFragment(frag)
-        else:
-            cursor.insertText(source.text())
-
-        end = cursor.position()
-
-        # Now overwrite ONLY the pasted/inserted text colour
-        cursor.setPosition(start)
-        cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
-
-        fmt = QTextCharFormat()
-        fmt.setForeground(self.palette().color(QPalette.ColorRole.Text))
-        cursor.mergeCharFormat(fmt)
-
-        # Ensure subsequent typing also uses the base text colour
-        self.mergeCurrentCharFormat(fmt)
-
-        cursor.endEditBlock()
-
-class NoScrollDateEdit(QDateEdit):
-    def __init__(self, parent=None, date=None):
-        super().__init__(parent)
-        # Set default configuration
-        self.setDisplayFormat("dd/MM/yyyy")
-        self.setCalendarPopup(True)
-        if isinstance(date, QDate):
-            self.setDate(date)
-        else:
-            self.setDate(QDate.currentDate())
-        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-
-    def wheelEvent(self, event):
-        # Ignore wheel events
-        event.ignore()
-
-class NoScrollComboBox(QComboBox):
-    def wheelEvent(self, event):
-        # Ignore wheel events
-        event.ignore()
-
-# TODO: Remove resource_path, first ensure it won't be needed anymore
-def resource_path(relative_path: str) -> str:
-    if hasattr(sys, "_MEIPASS"):
-        return str(Path(sys._MEIPASS) / relative_path)
-    return str(Path(relative_path).resolve())
 
 def today_year_month() -> Tuple[int, int]:
     d = date.today()
@@ -299,18 +227,6 @@ def load_section_names_from_yaml() -> list[dict]:
     if not isinstance(sections, list):
         return []
     return sections
-
-# TODO: use this to create all icons
-# I can safely bundle icons from:
-# Tabler Icons (MIT) https://tabler.io/icons
-# Feather Icons (MIT)
-# Material Symbols (Outlined)
-
-def themed_icon_with_fallback(theme_name: str, fallback_path: str) -> QIcon:
-    icon = QIcon.fromTheme(theme_name)
-    if icon.isNull():
-        icon = QIcon(fallback_path)
-    return icon
     
 def palette_color_to_rgba(c, a=100):
     return f"rgba({c.red()}, {c.green()}, {c.blue()}, {a})"

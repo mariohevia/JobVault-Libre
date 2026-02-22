@@ -1,5 +1,3 @@
-from importlib import resources
-
 from PyQt6.QtWidgets import (
     QWidget,
     QLabel,
@@ -17,47 +15,21 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtCore import Qt, QStringListModel, QEvent, QDate
-from PyQt6.QtGui import QIcon, QPalette
+from PyQt6.QtGui import QPalette
 
 from myapp.database import JobDatabase
-from myapp.utils import NoScrollDateEdit, NoScrollComboBox, BaseColourTextEdit
-
-# TODO: guarantee that the icon exists
-SEARCH_ICON = QIcon.fromTheme("edit-find")
-EDIT_ICON = QIcon.fromTheme("document-edit")
-FILTER_ICON = QIcon.fromTheme("view-filter")
-# search_icon = QIcon(":/icons/search.svg")  # or a local file
-
-STATUS_OPTIONS = [
-    "Not Applied",
-    "Applied",
-    "Interview Scheduled",
-    "Interviewed",
-    "Offer",
-    "Rejected",
-    "Withdrawn",
-    ]
-
-JOB_TYPE_OPTIONS = [
-    "Full time",
-    "Part time",
-    "Contract",
-    ]
-
-WORK_ARRANGEMENT_OPTIONS = [
-    "On-site", 
-    "Hybrid", 
-    "Remote"]
-
-STATUS_COLORS = {
-    "Not Applied": "#256D6D",           # Desaturated Teal - informative
-    "Applied": "#3B82F6",               # Blue - informative
-    "Interview Scheduled": "#F59E0B",   # Amber - attention/upcoming
-    "Interviewed": "#8B5CF6",           # Purple - in progress/waiting
-    "Offer": "#2b7a2b",                 # Green - success/positive
-    "Rejected": "#EF4444",              # Red - negative/closed
-    "Withdrawn": "#6B7280",             # Gray - neutral/inactive
-}
+from myapp.widgets import (
+    NoScrollDateEdit, 
+    NoScrollComboBox, 
+    BaseColourTextEdit,
+    )
+from myapp.icons import SearchIcon, EditIcon, FilterIcon
+from myapp.constants import (
+    STATUS_OPTIONS, 
+    STATUS_COLORS, 
+    JOB_TYPE_OPTIONS, 
+    WORK_ARRANGEMENT_OPTIONS,
+    )
 
 # Sentinel Julian day used for "Not Applied" jobs in sort (treated as newer than any real date)
 _SORT_SENTINEL_NOT_APPLIED = 99999999
@@ -602,7 +574,7 @@ class ViewApplicationOverlay(QWidget):
         title_row.addStretch()
 
         edit_btn = QPushButton("")
-        edit_btn.setIcon(EDIT_ICON)
+        edit_btn.setIcon(EditIcon())
         edit_btn.setObjectName("editBtn")
         edit_btn.setToolTip("Edit application")
         edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1150,7 +1122,7 @@ class TrackerPage(QWidget):
         self.searchbar.setClearButtonEnabled(True)
         self.searchbar.textChanged.connect(self.update_jobs_displayed)
         self.searchbar.addAction(
-            SEARCH_ICON,
+            SearchIcon(),
             QLineEdit.ActionPosition.LeadingPosition
         )
 
@@ -1186,7 +1158,7 @@ class TrackerPage(QWidget):
 
         # Filter icon + label
         filter_icon_label = QLabel()
-        filter_icon_label.setPixmap(FILTER_ICON.pixmap(16, 16))
+        filter_icon_label.setPixmap(FilterIcon().pixmap(16, 16))
         filter_icon_label.setAlignment(
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
         )
@@ -1365,11 +1337,6 @@ class TrackerPage(QWidget):
         border_color = window_bg.lighter(140)
         hover_bg = button_bg.lighter(120)
         
-        # Get calendar icon path
-        with resources.as_file(resources.files("myapp.resources.icons").joinpath("calendar.png")) as path:
-            CALENDAR_ICON_PATH = str(path).replace("\\", "/")
-        
-        # Consolidated stylesheet
         stylesheet = f"""
             /* ==================== SEARCH BAR ==================== */
             QLineEdit#searchBar {{
@@ -1423,25 +1390,7 @@ class TrackerPage(QWidget):
                 border: 1px solid {highlight.name()};
             }}
             QDateEdit#filterDate {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
-                border-radius: 4px;
-                padding: 3px 6px;
                 font-size: 11px;
-                min-width: 88px;
-            }}
-            QDateEdit#filterDate:focus {{
-                border: 1px solid {highlight.name()};
-            }}
-            QDateEdit#filterDate::down-arrow {{
-                image: url("{CALENDAR_ICON_PATH}");
-                width: 13px;
-                height: 13px;
-            }}
-            QDateEdit#filterDate::drop-down {{
-                border: none;
-                padding-right: 4px;
             }}
             QFrame#filterSeparator {{
                 color: {border_color.name()};
@@ -1489,31 +1438,20 @@ class TrackerPage(QWidget):
             }}
             
             /* ==================== FORM INPUTS ==================== */
-            QLineEdit#formInput, QTextEdit#formTextEdit, QDateEdit#formDate {{
+            QLineEdit#formInput, QTextEdit#formTextEdit {{
                 background-color: {base_bg.name()};
                 color: {text_color.name()};
                 border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
             }}
-            QLineEdit#formInput:focus, QTextEdit#formTextEdit:focus, QDateEdit#formDate:focus {{
+            QLineEdit#formInput:focus, QTextEdit#formTextEdit:focus {{
                 border: 1px solid {highlight.name()};
             }}
             QDateEdit#formDate:disabled {{
                 background-color: {button_bg.darker(105).name()};
                 color: {text_color.darker(150).name()};
                 border: 1px solid {border_color.darker(110).name()};
-            }}
-            
-            /* ==================== DATE EDIT CALENDAR ICON ==================== */
-            QDateEdit#formDate::down-arrow {{
-                image: url("{CALENDAR_ICON_PATH}");
-                width: 16px;
-                height: 16px;
-            }}
-            QDateEdit#formDate::drop-down {{
-                border: none;
-                padding-right: 6px;
             }}
             
             /* ==================== COMBOBOX ==================== */
