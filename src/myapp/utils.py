@@ -29,16 +29,14 @@ class ConfigDict(dict):
         return super().get(key)
 
 
-# TODO: Use this in all job dictionariesvariables because the job should never miss a
-# key in the code, otherwise something went wrong.
 class JobDict(dict):
     """Dictionary that raises AppError with troubleshooting steps on missing keys."""
 
     id: int
     company: str
-    company_website: str | None
     position: str
     status: str
+    company_website: str | None
     location: str | None
     source: str | None
     job_type: str | None
@@ -51,10 +49,50 @@ class JobDict(dict):
     job_url: str | None
     job_description: str | None
     notes: str | None
+    cv_pdf: bytes | None
     cv_text: str | None
+    cover_letter_pdf: bytes | None
     cover_letter_text: str | None
     last_update: str
-    
+
+    def _raise_missing(self, key: str) -> Never:
+        raise ConfigurationMissingKeyError(
+            message=f"Missing configuration key: '{key}' in JobDict"
+            )
+
+    def __missing__(self, key: str) -> Never:
+        self._raise_missing(key)
+
+    def get(self, key: str, default: None = None) -> Never:
+        if key not in self:
+            self._raise_missing(key)
+        return super().get(key)
+
+
+class NewJobDict(dict):
+    """Dictionary that raises AppError with troubleshooting steps on missing keys."""
+
+    company: str
+    position: str
+    status: str
+    company_website: str | None
+    location: str | None
+    source: str | None
+    job_type: str | None
+    date_applied: str | None
+    contact_name: str | None
+    contact_email: str | None
+    salary_range: str | None
+    work_arrangement: str | None
+    office_days: int | None
+    job_url: str | None
+    job_description: str | None
+    notes: str | None
+    cv_pdf: bytes | None
+    cv_text: str | None
+    cover_letter_pdf: bytes | None
+    cover_letter_text: str | None
+
     def _raise_missing(self, key: str) -> Never:
         raise ConfigurationMissingKeyError(
             message=f"Missing configuration key: '{key}' in JobDict"

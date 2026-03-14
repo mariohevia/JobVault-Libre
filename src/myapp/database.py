@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime
 from typing import Optional
 from myapp.constants import MISSING, _MissingType
-from myapp.utils import JobDict
+from myapp.utils import JobDict, NewJobDict
 
 class JobDatabase:
     def __init__(self, db_path):
@@ -63,44 +63,16 @@ class JobDatabase:
     
         self.conn.commit()
     
-    def add_job(
-        self, 
-        company: str,
-        position: str,
-        status: str,
-        company_website: str | None = None,
-        location: str | None = None,
-        source: str | None = None,
-        job_type: str | None = None,
-        date_applied: str | None = None,
-        contact_name: str | None = None,
-        contact_email: str | None = None,
-        salary_range: str | None = None,
-        work_arrangement: str | None = None,
-        office_days: int | None = None,
-        job_url: str | None = None,
-        job_description: str | None = None,
-        notes: str | None = None,
-        cv_pdf: bytes | None = None,
-        cv_text: str | None = None,
-        cover_letter_pdf: bytes | None = None,
-        cover_letter_text: str | None = None
-        ) -> int:
+    def add_job(self, job: NewJobDict) -> int:
         # TODO: deal with errors in the database.
         """
         Add a new job application to the database.
-        
         Args:
-            company: Company name (required)
-            position: Job position (required)
-            status: Application status (required)
-            All other parameters are optional
-            
+            job: NewJobDict containing all job application data
         Returns:
             The ID of the newly created job application
         """
         last_update = datetime.now().isoformat()
-        
         self.cursor.execute("""
             INSERT INTO job_applications (
                 company, company_website, position, status, location,
@@ -109,12 +81,15 @@ class JobDatabase:
                 job_url, job_description, notes, cv_pdf, cv_text,
                 cover_letter_pdf, cover_letter_text, last_update
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (company, company_website, position, status, location,
-            date_applied, contact_name, contact_email, salary_range,
-            work_arrangement, office_days, source, job_type,
-            job_url, job_description, notes, cv_pdf, cv_text,
-            cover_letter_pdf, cover_letter_text, last_update))
-        
+            """, (
+            job["company"], job["company_website"], job["position"],
+            job["status"], job["location"], job["date_applied"],
+            job["contact_name"], job["contact_email"], job["salary_range"],
+            job["work_arrangement"], job["office_days"], job["source"],
+            job["job_type"], job["job_url"], job["job_description"],
+            job["notes"], job["cv_pdf"], job["cv_text"],
+            job["cover_letter_pdf"], job["cover_letter_text"], last_update
+            ))
         self.conn.commit()
         return self.cursor.lastrowid
         
@@ -269,11 +244,10 @@ class JobDatabase:
         """
         self.cursor.execute("""
             SELECT id, company, company_website, position, status, location,
-                   source, job_type, 
-                   date_applied, contact_name, contact_email, salary_range,
-                   work_arrangement, office_days,
-                   job_url, job_description, notes, cv_text,
-                   cover_letter_text, last_update
+                   source, job_type, date_applied, contact_name, 
+                   contact_email, salary_range, work_arrangement, office_days,
+                   job_url, job_description, notes, cv_pdf, cv_text, 
+                   cover_letter_pdf, cover_letter_text, last_update
             FROM job_applications
             ORDER BY last_update DESC
             LIMIT 1000
@@ -299,9 +273,11 @@ class JobDatabase:
                 "job_url": r[14],
                 "job_description": r[15],
                 "notes": r[16],
-                "cv_text": r[17],
-                "cover_letter_text": r[18],
-                "last_update": r[19],
+                "cv_pdf": r[17],
+                "cv_text": r[18],
+                "cover_letter_pdf": r[19],
+                "cover_letter_text": r[20],
+                "last_update": r[21],
                 })
             for r in self.cursor.fetchall()
             ]

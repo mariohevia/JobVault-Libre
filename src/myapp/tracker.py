@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Any
 
 from PyQt6.QtWidgets import (
     QWidget,
@@ -43,6 +43,7 @@ from myapp.constants import (
     JOB_TYPE_OPTIONS, 
     WORK_ARRANGEMENT_OPTIONS,
     )
+from myapp.utils import JobDict, NewJobDict
 
 # TODO: Decrease boilerplate in Overlays
 # TODO: Handle cv and cover letter PDFs
@@ -61,50 +62,12 @@ class JobApplicationCard(QWidget):
 
     def __init__(
         self,
-        id: str,
-        company: str,
-        company_website: str | None,
-        position: str,
-        status: str,
-        location: str | None,
-        source: str | None,
-        job_type: str | None,
-        date_applied: str | None,
-        contact_name: str | None,
-        contact_email: str | None,
-        salary_range: str | None,
-        work_arrangement: str | None, 
-        office_days: int,
-        job_url: str | None,
-        job_description: str | None,
-        notes: str | None,
-        cv_text: str | None,
-        cover_letter_text: str | None,
-        last_update: str | None,
-        on_view: Callable | None = None,
+        job: JobDict,
+        on_view: Callable[[JobDict], None],
         ) -> None:
         super().__init__()
         self.on_view = on_view
-        self.id = id
-        self.company = company
-        self.company_website = company_website or ""
-        self.position = position
-        self.status = status
-        self.location = location or ""
-        self.source = source or ""
-        self.job_type = job_type or ""
-        self.date_applied = date_applied or ""
-        self.contact_name = contact_name or ""
-        self.contact_email = contact_email or ""
-        self.salary_range = salary_range or ""
-        self.work_arrangement = work_arrangement or ""
-        self.office_days = office_days
-        self.job_url = job_url or ""
-        self.job_description = job_description or ""
-        self.notes = notes or ""
-        self.cv_text = cv_text or ""
-        self.cover_letter_text = cover_letter_text or ""
-        self.last_update = last_update or ""
+        self.job = job
 
         self.setMinimumWidth(400)
         self.setSizePolicy(
@@ -133,16 +96,16 @@ class JobApplicationCard(QWidget):
         top_row = QHBoxLayout()
         top_row.setSpacing(8)
 
-        self.company_label = QLabel(self.company)
+        self.company_label = QLabel(self.job["company"])
         self.company_label.setObjectName("companyLabel")
         self.company_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        self.status_badge = QLabel(self.status)
+        self.status_badge = QLabel(self.job["status"])
         self.status_badge.setObjectName("statusBadge")
         self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_badge.setContentsMargins(8, 2, 8, 2)
-        status_badge_color = STATUS_COLORS.get(self.status, "#6B7280")
-        
+        status_badge_color = STATUS_COLORS.get(self.job["status"], "#6B7280")
+
         self.status_badge.setStyleSheet(f"""
             QLabel#statusBadge {{
                 border-radius: 10px;
@@ -160,11 +123,11 @@ class JobApplicationCard(QWidget):
         layout.addLayout(top_row)
 
         # ── Middle row  ──────────────────────────────────────────────────────
-        self.position_label = QLabel(self.position)
+        self.position_label = QLabel(self.job["position"])
         self.position_label.setObjectName("positionLabel")
 
-        if self.date_applied:
-            date = QDate.fromString(self.date_applied, Qt.DateFormat.ISODate)
+        if self.job["date_applied"]:
+            date = QDate.fromString(self.job["date_applied"], Qt.DateFormat.ISODate)
             date_text = f"Applied: {date.toString('dd/MM/yyyy')}"
         else:
             date_text = "Not applied"
@@ -183,7 +146,7 @@ class JobApplicationCard(QWidget):
         bottom_row = QHBoxLayout()
         bottom_row.setSpacing(8)
 
-        self.location_label = QLabel(self.location)
+        self.location_label = QLabel(self.job["location"] or "")
         self.location_label.setObjectName("locationLabel")
 
         bottom_row.addWidget(self.location_label)
@@ -191,35 +154,13 @@ class JobApplicationCard(QWidget):
 
         self.details_button = QPushButton("More details")
         self.details_button.setObjectName("detailsButton")
-        self.details_button.clicked.connect(self._handle_view_clicked) 
+        self.details_button.clicked.connect(self._handle_view_clicked)
         bottom_row.addWidget(self.details_button)
 
         layout.addLayout(bottom_row)
 
     def _handle_view_clicked(self) -> None:
-        if callable(self.on_view):
-            self.on_view({
-                "id": self.id,
-                "company": self.company,
-                "company_website": self.company_website,
-                "position": self.position,
-                "status": self.status,
-                "location": self.location,
-                "source": self.source,
-                "job_type": self.job_type,
-                "date_applied": self.date_applied,
-                "contact_name": self.contact_name,
-                "contact_email": self.contact_email,
-                "salary_range": self.salary_range,
-                "work_arrangement": self.work_arrangement,
-                "office_days": self.office_days,
-                "job_url": self.job_url,
-                "job_description": self.job_description,
-                "notes": self.notes,
-                "cv_text": self.cv_text,
-                "cover_letter_text": self.cover_letter_text,
-                "last_update": self.last_update,
-                })
+        self.on_view(self.job)
 
 
 class AddApplicationOverlay(QWidget):
@@ -231,7 +172,11 @@ class AddApplicationOverlay(QWidget):
     - clicking outside the popup panel
     - pressing Escape
     """
-    def __init__(self, parent: QWidget, on_submit: Callable) -> None:
+    def __init__(
+        self, 
+        parent: QWidget, 
+        on_submit: Callable[[NewJobDict], None]
+        ) -> None:
         super().__init__(parent)
         self.on_submit = on_submit
 
@@ -556,7 +501,7 @@ class AddApplicationOverlay(QWidget):
             date_applied_value = self.date_applied.date().toString(
                 Qt.DateFormat.ISODate) or None
 
-        payload = {
+        payload = NewJobDict({
             "company": company,
             "position": position,
             "status": status,
@@ -577,7 +522,7 @@ class AddApplicationOverlay(QWidget):
             "cv_text": None,
             "cover_letter_pdf": None,
             "cover_letter_text": None,
-        }
+            })
 
         self.on_submit(payload)
         self.close()
@@ -628,12 +573,12 @@ class ViewApplicationOverlay(QWidget):
     def __init__(
         self, 
         parent: QWidget, 
-        job: dict, 
-        on_remove: Callable, 
-        on_edit: Callable
+        job: JobDict, 
+        on_remove: Callable[[int], None], 
+        on_edit: Callable[[JobDict], None]
         ) -> None:
         super().__init__(parent)
-        self.job = dict(job)
+        self.job = JobDict(job)
         self.on_remove = on_remove
         self.on_edit = on_edit
 
@@ -716,7 +661,7 @@ class ViewApplicationOverlay(QWidget):
             )
 
         def make_value_label(key: str) -> QLabel:
-            value = self.job.get(key, "")
+            value = self.job[key]
             if value == 0:
                 value = "Not specified"
             elif value is None or value == "":
@@ -827,8 +772,7 @@ class ViewApplicationOverlay(QWidget):
 
     def _open_edit_overlay(self) -> None:
         """Invokes the edit callback and closes the current dialog."""
-        if callable(self.on_edit):
-            self.on_edit(self.job)
+        self.on_edit(self.job)
         self.close()
 
     def _remove(self) -> None:
@@ -895,12 +839,12 @@ class EditApplicationOverlay(QWidget):
     def __init__(
         self, 
         parent: QWidget, 
-        job: dict, 
-        on_save: Callable, 
-        on_remove: Callable
+        job: JobDict, 
+        on_save: Callable[dict[Any], None], 
+        on_remove: Callable[[int], None], 
         ) -> None:
         super().__init__(parent)
-        self.job = dict(job)
+        self.job = JobDict(job)
         self.on_save = on_save
         self.on_remove = on_remove
 
@@ -970,18 +914,18 @@ class EditApplicationOverlay(QWidget):
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
 
-        self.company = QLineEdit(self.job.get("company") or "")
+        self.company = QLineEdit(self.job["company"])
         self.company.setObjectName("formInput")
         self.company.setPlaceholderText("e.g., Google")
 
-        self.position = QLineEdit(self.job.get("position") or "")
+        self.position = QLineEdit(self.job["position"])
         self.position.setObjectName("formInput")
         self.position.setPlaceholderText("e.g., Software Engineer")
 
         self.status = NoScrollComboBox()
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
-        current_status = (self.job.get("status") or "").strip()
+        current_status = (self.job["status"] or "").strip()
         idx = self.status.findText(current_status)
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
         self.status.currentTextChanged.connect(self._on_status_changed)
@@ -989,7 +933,7 @@ class EditApplicationOverlay(QWidget):
         self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
-        current_job_type = (self.job.get("job_type") or "").strip()
+        current_job_type = (self.job["job_type"] or "").strip()
         idx = self.job_type.findText(current_job_type)
         self.job_type.setCurrentIndex(idx if idx >= 0 else 0)
 
@@ -997,7 +941,7 @@ class EditApplicationOverlay(QWidget):
         self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
         self.work_arrangement.setObjectName("formCombo")
         current_work_arrangement = (
-            self.job.get("work_arrangement") or ""
+            self.job["work_arrangement"] or ""
             ).strip()
         idx = self.work_arrangement.findText(current_work_arrangement)
         self.work_arrangement.setCurrentIndex(idx if idx >= 0 else 0)
@@ -1007,7 +951,7 @@ class EditApplicationOverlay(QWidget):
         
         self.office_days = NoScrollComboBox()
         self.office_days.setObjectName("formCombo")
-        current_office_days = self.job.get("office_days")
+        current_office_days = self.job["office_days"]
         if current_office_days is None:
             self.office_days.addItems(
                 ["N/A", "Not specified"]+[str(i) for i in range(1,5)]
@@ -1019,39 +963,38 @@ class EditApplicationOverlay(QWidget):
                 )
             self.office_days.setCurrentIndex(current_office_days)
 
-
-        self.company_website = QLineEdit(self.job.get("company_website") or "")
+        self.company_website = QLineEdit(self.job["company_website"] or "")
         self.company_website.setObjectName("formInput")
         self.company_website.setPlaceholderText("https://...")
 
-        self.location = QLineEdit(self.job.get("location") or "")
+        self.location = QLineEdit(self.job["location"] or "")
         self.location.setObjectName("formInput")
         self.location.setPlaceholderText("e.g., London, UK")
 
-        self.source = QLineEdit(self.job.get("source") or "")
+        self.source = QLineEdit(self.job["source"] or "")
         self.source.setObjectName("formInput")
         self.source.setPlaceholderText("e.g., LinkedIn")
 
-        existing_date_str = self.job.get("date_applied") or ""
+        existing_date_str = self.job["date_applied"] or ""
         date = QDate.fromString(existing_date_str, Qt.DateFormat.ISODate)
         self.date_applied = NoScrollDateEdit(
             date=date if date.isValid() else None
             )
         self.date_applied.setObjectName("formDate")
 
-        self.contact_name = QLineEdit(self.job.get("contact_name") or "")
+        self.contact_name = QLineEdit(self.job["contact_name"] or "")
         self.contact_name.setObjectName("formInput")
         self.contact_name.setPlaceholderText("Recruiter name")
 
-        self.contact_email = QLineEdit(self.job.get("contact_email") or "")
+        self.contact_email = QLineEdit(self.job["contact_email"] or "")
         self.contact_email.setObjectName("formInput")
         self.contact_email.setPlaceholderText("email@company.com")
 
-        self.salary_range = QLineEdit(self.job.get("salary_range") or "")
+        self.salary_range = QLineEdit(self.job["salary_range"] or "")
         self.salary_range.setObjectName("formInput")
         self.salary_range.setPlaceholderText("e.g., £100k - £150k")
 
-        self.job_url = QLineEdit(self.job.get("job_url") or "")
+        self.job_url = QLineEdit(self.job["job_url"] or "")
         self.job_url.setObjectName("formInput")
         self.job_url.setPlaceholderText("https://...")
 
@@ -1061,14 +1004,14 @@ class EditApplicationOverlay(QWidget):
             "Paste job description here..."
             )
         self.job_description.setAcceptRichText(True)
-        self.job_description.setHtml(self.job.get("job_description") or "")
+        self.job_description.setHtml(self.job["job_description"] or "")
         self.job_description.setFixedHeight(150)
         
         self.notes = BaseColourTextEdit()
         self.notes.setObjectName("formTextEdit")
         self.notes.setPlaceholderText("Additional notes...")
         self.notes.setAcceptRichText(True)
-        self.notes.setHtml(self.job.get("notes") or "")
+        self.notes.setHtml(self.job["notes"] or "")
         self.notes.setFixedHeight(150)
 
         label_alignment = (
@@ -1281,7 +1224,8 @@ class EditApplicationOverlay(QWidget):
         else:
             date_applied_value = self.date_applied.date().toString(Qt.DateFormat.ISODate) or None
 
-        current = {
+        current = JobDict({
+            "id": job_id,
             "company": company,
             "position": position,
             "status": status,
@@ -1299,15 +1243,17 @@ class EditApplicationOverlay(QWidget):
             "job_description": self.job_description.toHtml().strip() or None,
             "notes": self.notes.toHtml().strip() or None,
             # TODO: Handle cv and coverletter data
-            # "cv_pdf": None,
-            # "cv_text": None,
-            # "cover_letter_pdf": None,
-            # "cover_letter_text": None,
-        }
+            "cv_pdf": None,
+            "cv_text": None,
+            "cover_letter_pdf": None,
+            "cover_letter_text": None,
+            })
 
         changes = {}
         for k, new_v in current.items():
-            old_v = self.job.get(k)
+            if k == "id":
+                continue
+            old_v = self.job[k]
             if new_v != old_v:
                 changes[k] = new_v
 
@@ -1331,7 +1277,7 @@ class EditApplicationOverlay(QWidget):
         super().resizeEvent(event)
         self._fit_to_parent()
 
-    def eventFilter(self, obj, event: QShowEvent) -> bool:
+    def eventFilter(self, obj: QObject, event: QShowEvent) -> bool:
         if obj is self and event.type() == QEvent.Type.MouseButtonPress:
             if not self.dialog.geometry().contains(event.position().toPoint()):
                 self.close()
@@ -1812,15 +1758,15 @@ class TrackerPage(QWidget):
             self._overlay.deleteLater()
             self._overlay = None
         
-        def on_submit(payload: dict) -> None:
-            self.db.add_job(**payload)
+        def on_submit(payload: NewJobDict) -> None:
+            self.db.add_job(payload)
             self.refresh_from_db()
         
         self._overlay = AddApplicationOverlay(self, on_submit=on_submit)
         self._overlay.show()
         self._overlay.raise_()
 
-    def open_view_overlay_for_job(self, job: dict) -> None:
+    def open_view_overlay_for_job(self, job: JobDict) -> None:
         """Open the in-window overlay popup to view a job application."""
         if self._overlay is not None:
             self._overlay.deleteLater()
@@ -1830,7 +1776,7 @@ class TrackerPage(QWidget):
             self.db.remove_job(job_id)
             self.refresh_from_db()
 
-        def on_edit(job_payload: dict) -> None:
+        def on_edit(job_payload: JobDict) -> None:
             self.open_edit_overlay_for_job(job_payload)
 
         self._overlay = ViewApplicationOverlay(
@@ -1842,7 +1788,7 @@ class TrackerPage(QWidget):
         self._overlay.show()
         self._overlay.raise_()
 
-    def open_edit_overlay_for_job(self, job: dict) -> None:
+    def open_edit_overlay_for_job(self, job: JobDict) -> None:
         """Open the in-window overlay popup to edit a job application."""
         if self._overlay is not None:
             self._overlay.deleteLater()
@@ -1852,7 +1798,7 @@ class TrackerPage(QWidget):
             self.db.remove_job(job_id)
             self.refresh_from_db()
 
-        def on_save(job_id: int, changes: dict) -> None:
+        def on_save(job_id: int, changes: dict[Any]) -> None:
             self.db.edit_job(job_id, **changes)
             self.refresh_from_db()
 
@@ -1888,7 +1834,7 @@ class TrackerPage(QWidget):
 
         for job in self.job_applications:
             w = JobApplicationCard(
-                **job,
+                job,
                 on_view = self.open_view_overlay_for_job,
                 )
             self.job_card_widgets.append(w)
@@ -1919,13 +1865,13 @@ class TrackerPage(QWidget):
             sentinel_no_date = self._SORT_SENTINEL_NOT_APPLIED if descending else 0
 
             def sort_key(w: JobApplicationCard) -> int:
-                if not w.date_applied:
+                if not w.job["date_applied"]:
                     return sentinel_no_date
-                d = QDate.fromString(w.date_applied, Qt.DateFormat.ISODate)
+                d = QDate.fromString(w.job["date_applied"], Qt.DateFormat.ISODate)
                 return d.toJulianDay() if d.isValid() else sentinel_no_date
         else:
             def sort_key(w: JobApplicationCard) -> str:
-                return w.last_update or ""
+                return w.job["last_update"] or ""
 
         sorted_widgets = sorted(self.job_card_widgets, key=sort_key, reverse=descending)
 
@@ -1975,8 +1921,8 @@ class TrackerPage(QWidget):
             # "Not Applied" jobs have no date — always show them regardless of
             # the date filter (unless they are excluded by another filter).
             matches_date = True
-            if widget.date_applied:
-                card_date = QDate.fromString(widget.date_applied, Qt.DateFormat.ISODate)
+            if widget.job["date_applied"]:
+                card_date = QDate.fromString(widget.job["date_applied"], Qt.DateFormat.ISODate)
                 if card_date.isValid():
                     if not no_lower_bound and card_date < date_from:
                         matches_date = False
@@ -1992,7 +1938,7 @@ class TrackerPage(QWidget):
     def update_completer_hints(self, hints: list[str]) -> None:
         self.completer.setModel(QStringListModel(hints))
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QShowEvent) -> None:
         """Handle window resize - update overlay if it's open."""
         super().resizeEvent(event)
         
