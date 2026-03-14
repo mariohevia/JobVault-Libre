@@ -6,7 +6,7 @@ import yaml
 from importlib import resources
 from pathlib import Path
 from datetime import date
-from typing import Any, Dict, Tuple
+from typing import Any, Never
 
 from myapp.exceptions import ConfigurationFormatError, ConfigurationMissingKeyError
 
@@ -15,12 +15,12 @@ from myapp.exceptions import ConfigurationFormatError, ConfigurationMissingKeyEr
 class ConfigDict(dict):
     """Dictionary that raises AppError with troubleshooting steps on missing keys."""
 
-    def _raise_missing(self, key):
+    def _raise_missing(self, key: str) -> Never:
         raise ConfigurationMissingKeyError(
-            message=f"Missing configuration key: '{key}'"
+            message=f"Missing configuration key: '{key}' in ConfigDict"
             )
 
-    def __missing__(self, key):
+    def __missing__(self, key: str) -> Never:
         self._raise_missing(key)
 
     def get(self, key, default=None):
@@ -29,7 +29,47 @@ class ConfigDict(dict):
         return super().get(key)
 
 
-def today_year_month() -> Tuple[int, int]:
+# TODO: Use this in all job dictionariesvariables because the job should never miss a
+# key in the code, otherwise something went wrong.
+class JobDict(dict):
+    """Dictionary that raises AppError with troubleshooting steps on missing keys."""
+
+    id: int
+    company: str
+    company_website: str | None
+    position: str
+    status: str
+    location: str | None
+    source: str | None
+    job_type: str | None
+    date_applied: str | None
+    contact_name: str | None
+    contact_email: str | None
+    salary_range: str | None
+    work_arrangement: str | None
+    office_days: int | None
+    job_url: str | None
+    job_description: str | None
+    notes: str | None
+    cv_text: str | None
+    cover_letter_text: str | None
+    last_update: str
+    
+    def _raise_missing(self, key: str) -> Never:
+        raise ConfigurationMissingKeyError(
+            message=f"Missing configuration key: '{key}' in JobDict"
+            )
+
+    def __missing__(self, key: str) -> Never:
+        self._raise_missing(key)
+
+    def get(self, key: str, default: None = None) -> Never:
+        if key not in self:
+            self._raise_missing(key)
+        return super().get(key)
+
+
+def today_year_month() -> tuple[int, int]:
     d = date.today()
     return d.year, d.month
 
@@ -57,7 +97,7 @@ def get_app_data_dir(app_name: str) -> Path:
     app_dir.mkdir(parents=True, exist_ok=True)
     return app_dir
 
-def get_app_paths_for_user(app_name: str, user_id: str) -> Dict[str, Path]:
+def get_app_paths_for_user(app_name: str, user_id: str) -> dict[str, Path]:
     base = get_app_data_dir(app_name) 
     profiles_dir = base / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
@@ -77,11 +117,11 @@ def get_app_paths_for_user(app_name: str, user_id: str) -> Dict[str, Path]:
     paths["cache"].mkdir(parents=True, exist_ok=True)
     return paths
 
-def save_full_config(config_path: str, full_cfg: Dict[str, Any]) -> None:
+def save_full_config(config_path: str, full_cfg: dict[str, Any]) -> None:
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(full_cfg, f, indent=2, ensure_ascii=False)
 
-def field_default_value(field_def: Dict[str, Any]) -> Any:
+def field_default_value(field_def: dict[str, Any]) -> Any:
     ftype = field_def.get("type")
 
     # default_value from YAML if present and non-empty
@@ -201,7 +241,7 @@ def load_full_config(config_path):
 
     return data
 
-def load_cv_config(config_path: str) -> Dict[str, Any]:
+def load_cv_config(config_path: str) -> dict[str, Any]:
     cv_config = load_full_config(config_path).get("cv_config")
 
     return cv_config

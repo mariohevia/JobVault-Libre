@@ -237,7 +237,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         root_layout.addWidget(self.stack, 1)
 
-        self.applications_page = TrackerPage(self.db, self.palette, parent=self)
+        self.applications_page = TrackerPage(self.db, parent=self)
         self.stack.addWidget(self.applications_page)
 
         self.profile_page = ProfilePage(self.palette, paths=self.user_paths)

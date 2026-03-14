@@ -1,6 +1,8 @@
 import sqlite3
 from datetime import datetime
-from typing import Optional, List, Tuple
+from typing import Optional
+from myapp.constants import MISSING, _MissingType
+from myapp.utils import JobDict
 
 class JobDatabase:
     def __init__(self, db_path):
@@ -61,27 +63,29 @@ class JobDatabase:
     
         self.conn.commit()
     
-    def add_job(self, 
-            company: str, 
-            position: str, 
-            status: str,
-            company_website: Optional[str] = None,
-            location: Optional[str] = None,
-            source: Optional[str] = None,
-            job_type: Optional[str] = None,
-            date_applied: Optional[str] = None,
-            contact_name: Optional[str] = None,
-            contact_email: Optional[str] = None,
-            salary_range: Optional[str] = None,
-            work_arrangement: Optional[str] = None,
-            office_days: Optional[int] = None,
-            job_url: Optional[str] = None,
-            job_description: Optional[str] = None,
-            notes: Optional[str] = None,
-            cv_pdf: Optional[bytes] = None,
-            cv_text: Optional[str] = None,
-            cover_letter_pdf: Optional[bytes] = None,
-            cover_letter_text: Optional[str] = None) -> int:
+    def add_job(
+        self, 
+        company: str,
+        position: str,
+        status: str,
+        company_website: str | None = None,
+        location: str | None = None,
+        source: str | None = None,
+        job_type: str | None = None,
+        date_applied: str | None = None,
+        contact_name: str | None = None,
+        contact_email: str | None = None,
+        salary_range: str | None = None,
+        work_arrangement: str | None = None,
+        office_days: int | None = None,
+        job_url: str | None = None,
+        job_description: str | None = None,
+        notes: str | None = None,
+        cv_pdf: bytes | None = None,
+        cv_text: str | None = None,
+        cover_letter_pdf: bytes | None = None,
+        cover_letter_text: str | None = None
+        ) -> int:
         # TODO: deal with errors in the database.
         """
         Add a new job application to the database.
@@ -114,122 +118,121 @@ class JobDatabase:
         self.conn.commit()
         return self.cursor.lastrowid
         
-    def edit_job(self,
-            job_id: int,
-            company: Optional[str] = None,
-            company_website: Optional[str] = None,
-            position: Optional[str] = None,
-            status: Optional[str] = None,
-            location: Optional[str] = None,
-            source: Optional[str] = None,
-            job_type: Optional[str] = None,
-            date_applied: Optional[str] = None,
-            contact_name: Optional[str] = None,
-            contact_email: Optional[str] = None,
-            salary_range: Optional[str] = None,
-            work_arrangement: Optional[str] = None,
-            office_days: Optional[int] = None,
-            job_url: Optional[str] = None,
-            job_description: Optional[str] = None,
-            notes: Optional[str] = None,
-            cv_pdf: Optional[bytes] = None,
-            cv_text: Optional[str] = None,
-            cover_letter_pdf: Optional[bytes] = None,
-            cover_letter_text: Optional[str] = None) -> bool:
+    def edit_job(
+        self,
+        job_id: int,
+        company: str | None | _MissingType = MISSING,
+        company_website: str | None | _MissingType = MISSING,
+        position: str | None | _MissingType = MISSING,
+        status: str | None | _MissingType = MISSING,
+        location: str | None | _MissingType = MISSING,
+        source: str | None | _MissingType = MISSING,
+        job_type: str | None | _MissingType = MISSING,
+        date_applied: str | None | _MissingType = MISSING,
+        contact_name: str | None | _MissingType = MISSING,
+        contact_email: str | None | _MissingType = MISSING,
+        salary_range: str | None | _MissingType = MISSING,
+        work_arrangement: str | None | _MissingType = MISSING,
+        office_days: int | None | _MissingType = MISSING,
+        job_url: str | None | _MissingType = MISSING,
+        job_description: str | None | _MissingType = MISSING,
+        notes: str | None | _MissingType = MISSING,
+        cv_pdf: bytes | None | _MissingType = MISSING,
+        cv_text: str | None | _MissingType = MISSING,
+        cover_letter_pdf: bytes | None | _MissingType = MISSING,
+        cover_letter_text: str | None | _MissingType = MISSING
+        ) -> bool:
         """
         Edit an existing job application. Only updates fields that are provided.
-        
+
         Args:
             job_id: The ID of the job application to edit (required)
-            All other parameters are optional - only provided fields will be updated
-            
+            All other parameters are optional - only provided fields will be updated.
+            Pass None to explicitly clear a field. Omit or pass MISSING to leave it untouched.
+
         Returns:
             True if the job was updated, False if job_id doesn't exist
         """
-        # Build the UPDATE query dynamically based on provided fields
         fields_to_update = []
         values = []
-        
-        if company is not None:
+
+        if company is not MISSING:
             fields_to_update.append("company = ?")
             values.append(company)
-        if company_website is not None:
+        if company_website is not MISSING:
             fields_to_update.append("company_website = ?")
             values.append(company_website)
-        if position is not None:
+        if position is not MISSING:
             fields_to_update.append("position = ?")
             values.append(position)
-        if status is not None:
+        if status is not MISSING:
             fields_to_update.append("status = ?")
             values.append(status)
-        if location is not None:
+        if location is not MISSING:
             fields_to_update.append("location = ?")
             values.append(location)
-        if source is not None:
+        if source is not MISSING:
             fields_to_update.append("source = ?")
             values.append(source)
-        if job_type is not None:
+        if job_type is not MISSING:
             fields_to_update.append("job_type = ?")
             values.append(job_type)
-        if date_applied is not None:
+        if date_applied is not MISSING:
             fields_to_update.append("date_applied = ?")
             values.append(date_applied)
-        if contact_name is not None:
+        if contact_name is not MISSING:
             fields_to_update.append("contact_name = ?")
             values.append(contact_name)
-        if contact_email is not None:
+        if contact_email is not MISSING:
             fields_to_update.append("contact_email = ?")
             values.append(contact_email)
-        if salary_range is not None:
+        if salary_range is not MISSING:
             fields_to_update.append("salary_range = ?")
             values.append(salary_range)
-        if work_arrangement is not None:
+        if work_arrangement is not MISSING:
             fields_to_update.append("work_arrangement = ?")
             values.append(work_arrangement)
-        if work_arrangement is not None or office_days is not None:
+        if office_days is not MISSING:
             fields_to_update.append("office_days = ?")
             values.append(office_days)
-        if job_url is not None:
+        if job_url is not MISSING:
             fields_to_update.append("job_url = ?")
             values.append(job_url)
-        if job_description is not None:
+        if job_description is not MISSING:
             fields_to_update.append("job_description = ?")
             values.append(job_description)
-        if notes is not None:
+        if notes is not MISSING:
             fields_to_update.append("notes = ?")
             values.append(notes)
-        if cv_pdf is not None:
+        if cv_pdf is not MISSING:
             fields_to_update.append("cv_pdf = ?")
             values.append(cv_pdf)
-        if cv_text is not None:
+        if cv_text is not MISSING:
             fields_to_update.append("cv_text = ?")
             values.append(cv_text)
-        if cover_letter_pdf is not None:
+        if cover_letter_pdf is not MISSING:
             fields_to_update.append("cover_letter_pdf = ?")
             values.append(cover_letter_pdf)
-        if cover_letter_text is not None:
+        if cover_letter_text is not MISSING:
             fields_to_update.append("cover_letter_text = ?")
             values.append(cover_letter_text)
-        
-        # Always update last_update
+
         fields_to_update.append("last_update = ?")
         values.append(datetime.now().isoformat())
-        
-        # Add job_id for WHERE clause
         values.append(job_id)
-        
-        if len(fields_to_update) == 1:  # Only last_update was added
+
+        if len(fields_to_update) == 1:
             return False
-        
+
         query = f"""
             UPDATE job_applications
             SET {', '.join(fields_to_update)}
             WHERE id = ?
-        """
-        
+            """
+
         self.cursor.execute(query, values)
         self.conn.commit()
-        
+
         return self.cursor.rowcount > 0
 
     def remove_job(self, job_id: int) -> bool:
@@ -257,7 +260,7 @@ class JobDatabase:
             self.conn.rollback()
             return False
 
-    def get_all_jobs(self) -> List[Tuple]:
+    def get_all_jobs(self) -> list[JobDict]:
         """
         Retrieve all job applications (up to 1000) from the database.
         
@@ -275,7 +278,33 @@ class JobDatabase:
             ORDER BY last_update DESC
             LIMIT 1000
         """)
-        return self.cursor.fetchall()
+
+        # TODO: PDFs and extracted text are intentionally ignored in the UI.
+        return [
+            JobDict({
+                "id": r[0],
+                "company": r[1],
+                "company_website": r[2],
+                "position": r[3],
+                "status": r[4],
+                "location": r[5],
+                "source": r[6],
+                "job_type": r[7],
+                "date_applied": r[8],
+                "contact_name": r[9],
+                "contact_email": r[10],
+                "salary_range": r[11],
+                "work_arrangement": r[12],
+                "office_days": r[13],
+                "job_url": r[14],
+                "job_description": r[15],
+                "notes": r[16],
+                "cv_text": r[17],
+                "cover_letter_text": r[18],
+                "last_update": r[19],
+                })
+            for r in self.cursor.fetchall()
+            ]
 
     def get_cv_pdf(self, job_id: int) -> Optional[bytes]:
         """
@@ -311,7 +340,7 @@ class JobDatabase:
         result = self.cursor.fetchone()
         return result[0] if result and result[0] else None
 
-    def get_all_cv_groups(self) -> List[Tuple]:
+    def get_all_cv_groups(self) -> list[tuple]:
         """
         Retrieve all CV groups ordered by last update.
 
@@ -345,7 +374,7 @@ class JobDatabase:
         row = self.cursor.fetchone()
         return row[0] if row else None
 
-    def get_cv_versions(self, cv_group_id: int) -> List[Tuple]:
+    def get_cv_versions(self, cv_group_id: int) -> list[tuple]:
         """
         Retrieve all CV versions for a given CV group.
 

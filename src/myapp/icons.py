@@ -93,3 +93,18 @@ class FilterIcon(AppIconSVG):
         super().__init__(
             "filter.svg", color_role=color_role, color_name=color_name
             )
+
+
+class CloseIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "close.svg", color_role=color_role, color_name=color_name
+            )
+
+
+class GithubSponsorIcon(AppIconSVG):
+    def __init__(self):
+        super().__init__("heart.svg", color_name="#EA4AAA") 

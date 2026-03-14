@@ -4,7 +4,7 @@ from pathlib import Path
 
 from importlib import resources
 from datetime import date
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable
 
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QPalette, QFont, QIcon, QIntValidator
@@ -48,8 +48,8 @@ STATUS_COLORS = {
 
 EDIT_ICON = QIcon.fromTheme("document-edit")
 
-SectionDef = Dict[str, Any]
-SectionCfg = Dict[str, Any]
+SectionDef = dict[str, Any]
+SectionCfg = dict[str, Any]
 
 
 class SectionSettingsOverlay(QWidget):
@@ -69,7 +69,7 @@ class SectionSettingsOverlay(QWidget):
         section_def: SectionDef,
         section_cfg: SectionCfg,
         config_path: str,
-        on_saved: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        on_saved: Callable[[str, dict[str, Any]], None] | None = None,
     ):
         super().__init__(parent)
 
@@ -82,7 +82,7 @@ class SectionSettingsOverlay(QWidget):
         self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
         self.select_multiple = bool(self.section_def.get("select_multiple", True))
 
-        self._item_widgets: List["_ItemEditor"] = []
+        self._item_widgets: list["_ItemEditor"] = []
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setObjectName("overlay")
@@ -413,7 +413,7 @@ class SectionSettingsOverlay(QWidget):
         item_label = self.section_def.get("item_label") or {}
         return (item_label.get("plural") or "").strip()
 
-    def _fields_def(self) -> List[Dict[str, Any]]:
+    def _fields_def(self) -> list[dict[str, Any]]:
         fields = self.section_def.get("fields") or []
         return [f for f in fields if isinstance(f, dict) and f.get("name")]
 
@@ -436,13 +436,13 @@ class SectionSettingsOverlay(QWidget):
         for payload in items:
             self._add_item_editor(payload)
 
-    def _make_default_item_payload(self) -> Dict[str, Any]:
+    def _make_default_item_payload(self) -> dict[str, Any]:
         """
         Returns an item payload shaped as:
           { field_name: "value" } OR
           { field_name: ["value", ... ] } for multiple fields.
         """
-        out: Dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for fdef in self._fields_def():
             fname = fdef["name"]
             is_multi = bool(fdef.get("allow_multiple", False))
@@ -460,7 +460,7 @@ class SectionSettingsOverlay(QWidget):
         payload = self._make_default_item_payload()
         self._add_item_editor(payload)
 
-    def _add_item_editor(self, payload: Dict[str, Any]) -> None:
+    def _add_item_editor(self, payload: dict[str, Any]) -> None:
         editor = _ItemEditor(
             section_fields=self._fields_def(),
             payload=dict(payload or {}),
@@ -565,7 +565,7 @@ class SectionSettingsOverlay(QWidget):
             return
 
         # collect section payload
-        section_payload: Dict[str, Any] = {
+        section_payload: dict[str, Any] = {
             "enabled": self.include_toggle.isChecked(),
             "preselected": self.default_toggle.isChecked(),
             "items": [ed.to_payload() for ed in self._item_widgets],
@@ -598,8 +598,8 @@ class SectionSettingsOverlay(QWidget):
 class _ItemEditor(QFrame):
     def __init__(
         self,
-        section_fields: List[Dict[str, Any]],
-        payload: Dict[str, Any],
+        section_fields: list[dict[str, Any]],
+        payload: dict[str, Any],
         palette: QPalette,
         allow_multiple: bool,
         on_remove: Callable[[], None],
@@ -611,7 +611,7 @@ class _ItemEditor(QFrame):
         self.on_remove = on_remove
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setObjectName("itemEditorFrame")
-        self._field_editors: Dict[str, Union["_SingleFieldEditor", "_MultiFieldEditor"]] = {}
+        self._field_editors: dict[str, "_SingleFieldEditor" | "_MultiFieldEditor"] = {}
         
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -709,8 +709,8 @@ class _ItemEditor(QFrame):
     def set_title(self, title: str) -> None:
         self.group_box.setTitle(title or "Item")
 
-    def to_payload(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
+    def to_payload(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
         if self.allow_multiple:
             out["selected_default"] = self.selected_toggle.isChecked()
         for fname, editor in self._field_editors.items():
@@ -723,7 +723,7 @@ class _SingleFieldEditor(QWidget):
     Renders one field editor + 'Show field in CV Builder' checkbox.
     """
 
-    def __init__(self, fdef: Dict[str, Any], initial_value: Any, show_name: bool, flabel: str):
+    def __init__(self, fdef: dict[str, Any], initial_value: Any, show_name: bool, flabel: str):
         super().__init__()
         self.fdef = fdef
 
@@ -744,7 +744,7 @@ class _SingleFieldEditor(QWidget):
         layout.addLayout(row)
         layout.addWidget(self.editor)
 
-    def to_payload(self) -> Dict[str, Any]:
+    def to_payload(self) -> dict[str, Any]:
         return _read_value_widget(self.fdef, self.editor)
 
 
@@ -761,13 +761,13 @@ class _MultiFieldEditor(QWidget):
     def __init__(
         self, 
         palette: QPalette,
-        fdef: Dict[str, Any], 
-        initial_list: List[Any], 
+        fdef: dict[str, Any], 
+        initial_list: list[Any], 
         show_name: bool, 
         flabel: str):
         super().__init__()
         self.fdef = fdef
-        self.rows: List[Tuple[QWidget, Optional[QPushButton]]] = []
+        self.rows: list[tuple[QWidget, QPushButton | None]] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -850,7 +850,7 @@ class _MultiFieldEditor(QWidget):
             controls.addWidget(label)
         controls.addStretch()
 
-        remove_btn: Optional[QPushButton] = None
+        remove_btn: QPushButton | None = None
         if True:
             remove_btn = QPushButton("Remove")
             remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -908,14 +908,14 @@ class _MultiFieldEditor(QWidget):
             if rb is not None:
                 rb.setEnabled(can_remove)
 
-    def to_payload(self) -> List[Dict[str, Any]]:
-        out: List[Dict[str, Any]] = []
+    def to_payload(self) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
         for editor, _ in self.rows:
             out.append(_read_value_widget(self.fdef, editor))
         return out
 
 
-def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
+def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
     ftype = fdef.get("type")
 
     if ftype == "string":
@@ -1060,7 +1060,7 @@ def _build_value_widget(fdef: Dict[str, Any], value: Any) -> QWidget:
     return w
 
 
-def _read_value_widget(fdef: Dict[str, Any], widget: QWidget) -> Any:
+def _read_value_widget(fdef: dict[str, Any], widget: QWidget) -> Any:
     ftype = fdef.get("type")
 
     if ftype == "string":
@@ -1100,7 +1100,7 @@ def _read_value_widget(fdef: Dict[str, Any], widget: QWidget) -> Any:
 
     if ftype == "object":
         sub_map = widget._sub_editors  # type: ignore[attr-defined]
-        out: Dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for name, (sub_def, sub_w) in sub_map.items():
             out[name] = _read_value_widget(sub_def, sub_w)
         return out

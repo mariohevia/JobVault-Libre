@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 from PyQt6.QtWidgets import (
     QWidget,
@@ -76,8 +76,8 @@ STATUS_COLORS = {
     "Withdrawn": "#6B7280",
 }
 
-SectionDef = Dict[str, Any]
-SectionCfg = Dict[str, Any]
+SectionDef = dict[str, Any]
+SectionCfg = dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -267,8 +267,8 @@ class _FieldEditOverlay(_BaseOverlay):
         config_path: str,
         # For allow_multiple fields — which entry inside the list to edit.
         # None means "this field is not a list field".
-        entry_index: Optional[int] = None,
-        on_saved: Optional[Callable[[str, Any, bool], None]] = None,
+        entry_index: int | None = None,
+        on_saved: Callable[[str, Any, bool], None] | None = None,
     ):
         super().__init__(parent, palette, "fieldEditOverlay", "fieldEditDialogFrame")
 
@@ -391,7 +391,7 @@ class _AddEntryOverlay(_BaseOverlay):
         item_index: int,
         field_name: str,
         config_path: str,
-        on_saved: Optional[Callable[[str, Any, bool], None]] = None,
+        on_saved: Callable[[str, Any, bool], None] | None = None,
     ):
         super().__init__(parent, palette, "addEntryOverlay", "addEntryDialogFrame")
 
@@ -485,7 +485,7 @@ class _AddItemOverlay(_BaseOverlay):
         section_def: SectionDef,
         section_cfg: SectionCfg,
         config_path: str,
-        on_saved: Optional[Callable[[str, Dict[str, Any], bool], None]] = None,
+        on_saved: Callable[[str, dict[str, Any], bool], None] | None = None,
     ):
         super().__init__(parent, palette, "addItemOverlay", "addItemDialogFrame")
 
@@ -526,12 +526,12 @@ class _AddItemOverlay(_BaseOverlay):
 
         self.dialog.setMinimumSize(500, 400)
 
-    def _fields_def(self) -> List[Dict[str, Any]]:
+    def _fields_def(self) -> list[dict[str, Any]]:
         fields = self.section_def.get("fields") or []
         return [f for f in fields if isinstance(f, dict) and f.get("name")]
 
-    def _make_default_item_payload(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
+    def _make_default_item_payload(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
         for fdef in self._fields_def():
             fname    = fdef["name"]
             is_multi = bool(fdef.get("allow_multiple", False))
@@ -583,7 +583,7 @@ class _AddItemOverlay(_BaseOverlay):
 # Read-only value renderer
 # ---------------------------------------------------------------------------
 
-def _render_value_readonly(fdef: Dict[str, Any], value: Any) -> QWidget:
+def _render_value_readonly(fdef: dict[str, Any], value: Any) -> QWidget:
     ftype = fdef.get("type", "string")
 
     if ftype == "year_month":
@@ -648,12 +648,12 @@ class _ReadonlyItemView(QFrame):
 
     def __init__(
         self,
-        section_fields: List[Dict[str, Any]],
-        payload: Dict[str, Any],
+        section_fields: list[dict[str, Any]],
+        payload: dict[str, Any],
         title: str,
         item_index: int,
         allow_multiple: bool,          # whether the *section* allows multiple items
-        on_edit_field: Callable[[str, Optional[int]], None],   # (field_name, entry_index|None)
+        on_edit_field: Callable[[str, int | None], None],   # (field_name, entry_index|None)
         on_add_entry: Callable[[str], None],                   # (field_name)
         palette: QPalette,
     ):
@@ -847,7 +847,7 @@ class SectionSelectionPage(QWidget):
         section_def: SectionDef,
         config_path: str,
         parent: QWidget | None = None,
-        on_item_saved: Optional[Callable[[str, Dict[str, Any], bool], None]] = None,
+        on_item_saved: Callable[[str, dict[str, Any], bool], None] | None = None,
     ):
         super().__init__(parent)
 
@@ -865,9 +865,9 @@ class SectionSelectionPage(QWidget):
         self.section_name = (self.section_def.get("name") or "").strip()
         self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
 
-        self._field_overlay: Optional[_FieldEditOverlay] = None
-        self._add_entry_overlay: Optional[_AddEntryOverlay]  = None
-        self._add_overlay: Optional[_AddItemOverlay]   = None
+        self._field_overlay: _FieldEditOverlay | None = None
+        self._add_entry_overlay: _AddEntryOverlay | None  = None
+        self._add_overlay: _AddItemOverlay | None   = None
 
         self._init_ui()
         self._load_and_render()
@@ -1036,7 +1036,7 @@ class SectionSelectionPage(QWidget):
     # Overlay launchers
     # ------------------------------------------------------------------
 
-    def _open_field_overlay(self, item_index: int, field_name: str, entry_index: Optional[int]) -> None:
+    def _open_field_overlay(self, item_index: int, field_name: str, entry_index: int | None) -> None:
         if self._field_overlay is not None:
             self._field_overlay.deleteLater()
             self._field_overlay = None
@@ -1098,7 +1098,7 @@ class SectionSelectionPage(QWidget):
         if self.on_item_saved:
             self.on_item_saved(section_name, value, all_cvs)
 
-    def _on_settings_saved(self, section_name: str, section_payload: Dict[str, Any]) -> None:
+    def _on_settings_saved(self, section_name: str, section_payload: dict[str, Any]) -> None:
         self._load_and_render()
 
     # ------------------------------------------------------------------
@@ -1132,7 +1132,7 @@ class CVListPage(QWidget):
         self,
         db: "JobDatabase",
         palette: QPalette,
-        paths: Dict[str, Path],
+        paths: dict[str, Path],
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -1533,17 +1533,7 @@ class TargetApplicationPage(QWidget):
                 self.job_table.setItem(row, col, item)
 
     def query_all_job_apps(self):
-        rows = self.db.get_all_jobs()
-        self.job_applications = []
-        for r in rows:
-            self.job_applications.append({
-                "id": r[0], "company": r[1], "company_website": r[2],
-                "position": r[3], "status": r[4], "location": r[5],
-                "source": r[6], "job_type": r[7], "date_applied": r[8],
-                "contact_name": r[9], "contact_email": r[10], "salary_range": r[11],
-                "work_arrangement": r[12], "office_days": r[13], "job_url": r[14],
-                "job_description": r[15], "notes": r[16], "last_update": r[19],
-            })
+        self.job_applications = self.db.get_all_jobs()
         self.job_companies  = [j["company"] for j in self.job_applications]
         self.job_positions  = [j["position"] for j in self.job_applications]
         self.job_locations  = [j["location"] for j in self.job_applications if j.get("location")]
@@ -1618,7 +1608,7 @@ class CVEditorContainer(QWidget):
         self,
         db: JobDatabase,
         palette: QPalette,
-        paths: Dict[str, Path],
+        paths: dict[str, Path],
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -1676,7 +1666,7 @@ class CVEditorContainer(QWidget):
         self.content_stack = QStackedWidget()
         main_layout.addWidget(self.content_stack)
 
-        self.section_pages: Dict[str, QWidget] = {}
+        self.section_pages: dict[str, QWidget] = {}
 
         self._create_target_app_page("target_application", "Target Application")
         for section_def in self.section_defs:
@@ -1737,7 +1727,7 @@ class CVBuilderPage(QWidget):
         self,
         db: JobDatabase,
         palette: QPalette,
-        paths: Dict[str, Path],
+        paths: dict[str, Path],
         parent: QWidget | None = None,
     ):
         super().__init__(parent)

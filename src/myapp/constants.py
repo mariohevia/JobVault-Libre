@@ -1,4 +1,19 @@
 
+from typing import Final
+
+class _MissingType:
+    """
+    Sentinel type for distinguishing 'missing' from None.
+    Use the singleton MISSING instead of instantiating this class.
+    """
+    def __repr__(self) -> str:
+        return "MISSING"
+
+    def __bool__(self) -> bool:
+        return False
+
+MISSING: Final[_MissingType] = _MissingType()
+
 STATUS_OPTIONS = [
     "Not Applied",
     "Applied",
