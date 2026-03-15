@@ -187,12 +187,11 @@ class BaseOverlay(QWidget):
         self,
         parent: QWidget,
         title: str,
-        object_name: str,
         ) -> None:
         super().__init__(parent)
         self._title_text = title
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName(object_name)
+        self.setObjectName("Overlay")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.installEventFilter(self)
 
@@ -465,8 +464,7 @@ class AddApplicationOverlay(BaseOverlay):
         self.on_submit = on_submit
         super().__init__(
             parent, 
-            title="Add Application", 
-            object_name="addOverlay"
+            title="Add Application",
             )
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
@@ -695,7 +693,6 @@ class ViewApplicationOverlay(BaseOverlay):
         super().__init__(
             parent, 
             title="Application Details",
-            object_name="viewOverlay"
             )
 
     def _title_row_extra_buttons(self) -> list[QPushButton]:
@@ -844,8 +841,7 @@ class EditApplicationOverlay(BaseOverlay):
         self.on_remove = on_remove
         super().__init__(
             parent, 
-            title="Edit Application", 
-            object_name="editOverlay"
+            title="Edit Application",
             )
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
@@ -1115,7 +1111,7 @@ class EditApplicationOverlay(BaseOverlay):
 
 class TrackerPage(QWidget):
 
-    ROWS_COMPLETER = 2
+    ROWS_COMPLETER = 3
     # Sentinel Julian day used for "Not Applied" jobs in sort (treated as newer
     # than any real date)
     _SORT_SENTINEL_NOT_APPLIED = 99999999
@@ -1168,9 +1164,31 @@ class TrackerPage(QWidget):
         popup.setObjectName("completerPopup")
         popup.setUniformItemSizes(True)
         popup.setMaximumHeight(
-            ((self.searchbar.fontMetrics().height() + 4)
+            ((self.searchbar.fontMetrics().height() + 4 + 8)
              * self.ROWS_COMPLETER + 2)
             )
+        #TODO: Set this stylesheet at the app level
+        popup.setStyleSheet("""
+            /* ==================== COMPLETER POPUP ==================== */
+            QListView#completerPopup {
+                border: 1px solid palette(mid);
+                border-radius: 2px;
+                padding: 4px;
+                }
+            QListView#completerPopup::item {
+                padding: 4px;
+                }
+            QListView#completerPopup::item:selected {
+                border-radius: 2px;
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+                }
+            QListView#completerPopup::item:hover {
+                border-radius: 2px;
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+                }
+            """)
 
         self.add_application_button = QPushButton("Add Application")
         self.add_application_button.clicked.connect(self.add_application)
@@ -1332,7 +1350,7 @@ class TrackerPage(QWidget):
         return sep
 
     # TODO: Check that everything here actually make things better and fits all
-    # distributions/OSs
+    # distributions/OSs with dark and light themes
     def _apply_stylesheet(self) -> None:
         """Apply consolidated stylesheet for all components."""
         window_bg = self.palette().color(QPalette.ColorRole.Window)
@@ -1348,61 +1366,37 @@ class TrackerPage(QWidget):
         stylesheet = f"""
             /* ==================== SEARCH BAR ==================== */
             QLineEdit#searchBar {{
-                border: 1px solid #cfcfcf;
-                border-radius: 18px;
+                border: 1px solid palette(window-text);
+                border-radius: 6px;
                 padding: 6px;
                 font-size: 12px;
-            }}
+                }}
             QLineEdit#searchBar:focus {{
-                border: 1px solid #5a8dee;
-            }}
-            
-            /* ==================== COMPLETER POPUP ==================== */
-            QListView#completerPopup {{
-                border: 1px solid #cccccc;
-                border-radius: 2px;
-                padding: 1px;
-            }}
-            QListView#completerPopup::item {{
-                padding: 1px;
-            }}
-            QListView#completerPopup::item:selected {{
-                border-radius: 2px;
-                background-color: palette(highlight);
-                color: palette(highlighted-text);
-            }}
-            QListView#completerPopup::item:hover {{
-                border-radius: 2px;
-                background-color: palette(highlight);
-                color: palette(highlighted-text);
-            }}
+                border: 1px solid palette(highlight);
+                }}
             
             /* ==================== FILTER BAR ==================== */
             QLabel#filterByLabel {{
                 font-size: 12px;
                 font-weight: 600;
-                color: {text_color.name()};
-            }}
+                color: palette(window-text);
+                }}
             QLabel#filterLabel {{
                 font-size: 11px;
                 color: {text_color.darker(130).name()};
-            }}
+                }}
             QComboBox#filterCombo {{
-                border: 1px solid {border_color.name()};
-                border-radius: 4px;
+                border: 1px solid palette(mid);
+                border-radius: 6px;
                 padding: 3px 6px;
                 font-size: 11px;
-                min-width: 80px;
-            }}
-            QComboBox#filterCombo:focus {{
-                border: 1px solid {highlight.name()};
-            }}
+                }}
             QDateEdit#filterDate {{
                 font-size: 11px;
-            }}
+                }}
             QFrame#filterSeparator {{
-                color: {border_color.name()};
-            }}
+                color: palette(mid);
+                }}
 
             /* ==================== JOB CARDS ==================== */
             QFrame#cardFrame {{
@@ -1426,9 +1420,9 @@ class TrackerPage(QWidget):
             }}
             
             /* ==================== OVERLAY BACKGROUNDS ==================== */
-            QWidget#addOverlay, QWidget#viewOverlay, QWidget#editOverlay {{
+            QWidget#Overlay {{
                 background-color: rgba(0, 0, 0, 180);
-            }}
+                }}
             
             /* ==================== DIALOG FRAMES ==================== */
             QFrame#dialogFrame {{
@@ -1454,7 +1448,7 @@ class TrackerPage(QWidget):
                 padding: 6px;
             }}
             QLineEdit#formInput:focus, QTextEdit#formTextEdit:focus {{
-                border: 1px solid {highlight.name()};
+                border: 1px solid palette(highlight);
             }}
             QDateEdit#formDate:disabled {{
                 background-color: {button_bg.darker(105).name()};
@@ -1501,8 +1495,8 @@ class TrackerPage(QWidget):
             }}
             
             QPushButton#saveBtn {{
-                background-color: {highlight.name()};
-                border: 1px solid {highlight.name()};
+                background-color: palette(highlight);
+                border: 1px solid palette(highlight);
                 color: white;
                 border-radius: 6px;
                 padding: 8px 16px;
@@ -1717,27 +1711,27 @@ class TrackerPage(QWidget):
             # ── text search ──────────────────────────────────────────────
             matches_text = (
                 (not t)
-                or (t in widget.company.lower())
-                or (t in widget.position.lower())
-                or (t in widget.location.lower())
+                or (t in widget.job["company"].lower())
+                or (t in widget.job["position"].lower())
+                or (t in (widget.job["location"] or "").lower())
             )
 
             # ── status filter ────────────────────────────────────────────
             matches_status = (
                 selected_status == "Any"
-                or widget.status.strip() == selected_status
+                or widget.job["status"].strip() == selected_status
             )
 
             # ── job type filter ──────────────────────────────────────────
             matches_job_type = (
                 selected_job_type == "Any"
-                or widget.job_type.strip() == selected_job_type
+                or widget.job["job_type"].strip() == selected_job_type
             )
 
             # ── work arrangement filter ──────────────────────────────────
             matches_arrangement = (
                 selected_arrangement == "Any"
-                or widget.work_arrangement.strip() == selected_arrangement
+                or widget.job["work_arrangement"].strip() == selected_arrangement
             )
 
             # ── date range filter ────────────────────────────────────────
