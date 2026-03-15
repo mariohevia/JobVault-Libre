@@ -195,9 +195,9 @@ class BaseOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.installEventFilter(self)
 
-        self.__build_shell()
+        self._build_ui()
 
-    def __build_shell(self) -> None:
+    def _build_ui(self) -> None:
         """Build the fixed outer structure: backdrop -> dialog -> sections."""
         # ── Outer frame and layouts ──────────────────────────────────────────
         self.dialog = QFrame(self)
@@ -213,23 +213,6 @@ class BaseOverlay(QWidget):
         dialog_layout.setSpacing(16)
 
         # ── Title row (NOT scrollable) ───────────────────────────────────────
-        dialog_layout.addLayout(self.__build_title_row())
-
-        # ── Form (scrollable) ────────────────────────────────────────────────
-        scroll_area, scroll_layout = self.__build_scroll_area()
-        self._build_form(scroll_layout)
-        dialog_layout.addWidget(scroll_area, stretch=1)
-
-        # ── Action buttons (NOT scrollable) ──────────────────────────────────
-        actions = QHBoxLayout()
-        actions.addStretch()
-        self._build_action_buttons(actions)
-        dialog_layout.addLayout(actions)
-
-        root_layout.addWidget(self.dialog)
-
-    def __build_title_row(self) -> QHBoxLayout:
-        """Build the title row including extra buttons."""
         title_row = QHBoxLayout()
 
         title_label = QLabel(self._title_text)
@@ -248,11 +231,9 @@ class BaseOverlay(QWidget):
             title_row.addWidget(btn)
         title_row.addWidget(close_btn)
 
-        return title_row
+        dialog_layout.addLayout(title_row)
 
-    @staticmethod
-    def __build_scroll_area() -> tuple[QScrollArea, QVBoxLayout]:
-        """Build the scroll area."""
+        # ── Form (scrollable) ────────────────────────────────────────────────
         scroll_area = QScrollArea()
         scroll_area.setObjectName("dialogScroll")
         scroll_area.setWidgetResizable(True)
@@ -269,7 +250,17 @@ class BaseOverlay(QWidget):
         scroll_layout.setSpacing(10)
 
         scroll_area.setWidget(scroll_content)
-        return scroll_area, scroll_layout
+
+        self._build_form(scroll_layout)
+        dialog_layout.addWidget(scroll_area, stretch=1)
+
+        # ── Action buttons (NOT scrollable) ──────────────────────────────────
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self._build_action_buttons(actions)
+        dialog_layout.addLayout(actions)
+
+        root_layout.addWidget(self.dialog)
 
     def _title_row_extra_buttons(self) -> list[QPushButton]:
         """
