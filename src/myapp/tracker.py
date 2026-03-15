@@ -183,11 +183,7 @@ class BaseOverlay(QWidget):
     Closing behaviour (X button, Escape key, click-outside) is handled here
     and works identically for every subclass.
     """
-    def __init__(
-        self,
-        parent: QWidget,
-        title: str,
-        ) -> None:
+    def __init__(self, parent: QWidget, title: str) -> None:
         super().__init__(parent)
         self._title_text = title
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -207,6 +203,8 @@ class BaseOverlay(QWidget):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(60, 40, 60, 80)
         root_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        root_layout.addWidget(self.dialog)
 
         dialog_layout = QVBoxLayout(self.dialog)
         dialog_layout.setContentsMargins(24, 20, 24, 24)
@@ -259,8 +257,6 @@ class BaseOverlay(QWidget):
         actions.addStretch()
         self._build_action_buttons(actions)
         dialog_layout.addLayout(actions)
-
-        root_layout.addWidget(self.dialog)
 
     def _title_row_extra_buttons(self) -> list[QPushButton]:
         """

@@ -243,7 +243,7 @@ class MainWindow(QMainWindow):
         self.profile_page = ProfilePage(self.palette, paths=self.user_paths)
         self.stack.addWidget(self.profile_page)
 
-        self.builder_page = CVBuilderPage(self.db, self.palette, paths=self.user_paths)
+        self.builder_page = CVBuilderPage(self.db, paths=self.user_paths)
         self.stack.addWidget(self.builder_page)
 
         self.support_page = SupportPage(self.palette)

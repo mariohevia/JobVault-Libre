@@ -464,7 +464,6 @@ class SectionSettingsOverlay(QWidget):
         editor = _ItemEditor(
             section_fields=self._fields_def(),
             payload=dict(payload or {}),
-            palette=self.palette(),
             allow_multiple=self.allow_multiple,
             on_remove=lambda ed=None: self._remove_item_editor(editor),
         )
@@ -600,7 +599,6 @@ class _ItemEditor(QFrame):
         self,
         section_fields: list[dict[str, Any]],
         payload: dict[str, Any],
-        palette: QPalette,
         allow_multiple: bool,
         on_remove: Callable[[], None],
         ):
@@ -666,7 +664,6 @@ class _ItemEditor(QFrame):
                 if not isinstance(initial, list):
                     initial = [initial]
                 editor = _MultiFieldEditor(
-                    palette=palette, 
                     fdef=fdef, 
                     initial_list=initial, 
                     show_name=show_name, 
@@ -760,7 +757,6 @@ class _MultiFieldEditor(QWidget):
 
     def __init__(
         self, 
-        palette: QPalette,
         fdef: dict[str, Any], 
         initial_list: list[Any], 
         show_name: bool, 
@@ -800,7 +796,7 @@ class _MultiFieldEditor(QWidget):
         add_row.addWidget(add_btn)
         outer.addLayout(add_row)
 
-        highlight = palette.color(QPalette.ColorRole.Highlight)
+        highlight = self.palette().color(QPalette.ColorRole.Highlight)
 
         self.setStyleSheet("""
             QPushButton#multifieldRemoveBtn {

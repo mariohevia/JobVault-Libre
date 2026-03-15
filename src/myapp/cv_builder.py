@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Callable
+from functools import partial
 
 from PyQt6.QtWidgets import (
     QWidget,
@@ -21,10 +22,17 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QGroupBox,
     QMessageBox,
-)
+    )
 
-from PyQt6.QtGui import QIcon, QPalette, QFont
-from PyQt6.QtCore import Qt, pyqtSignal, QDate, QStringListModel, QEvent
+from PyQt6.QtGui import QIcon, QPalette, QFont, QShowEvent
+from PyQt6.QtCore import (
+    Qt, 
+    pyqtSignal, 
+    QDate, 
+    QStringListModel, 
+    QEvent,
+    QObject,
+    )
 
 from myapp.database import JobDatabase
 from myapp.utils import (
@@ -33,162 +41,101 @@ from myapp.utils import (
     load_cv_config,
     load_full_config,
     save_full_config,
-)
+    )
 from myapp.widgets import NoScrollDateEdit, NoScrollComboBox
 from myapp.cv_config import (
     _build_value_widget,
     _read_value_widget,
     _ItemEditor,
-)
+    )
+from myapp.icons import (
+    SearchIcon,
+    FilterIcon,
+    CloseIcon,
+    )
+from myapp.constants import (
+    STATUS_OPTIONS,
+    JOB_TYPE_OPTIONS,
+    WORK_ARRANGEMENT_OPTIONS,
+    )
 
-SEARCH_ICON = QIcon.fromTheme("edit-find")
-FILTER_ICON = QIcon.fromTheme("view-filter")
-
-STATUS_OPTIONS = [
-    "Not Applied",
-    "Applied",
-    "Interview Scheduled",
-    "Interviewed",
-    "Offer",
-    "Rejected",
-    "Withdrawn",
-]
-
-JOB_TYPE_OPTIONS = [
-    "Full time",
-    "Part time",
-    "Contract",
-]
-
-WORK_ARRANGEMENT_OPTIONS = [
-    "On-site",
-    "Hybrid",
-    "Remote",
-]
-
-STATUS_COLORS = {
-    "Not Applied": "#256D6D",
-    "Applied": "#3B82F6",
-    "Interview Scheduled": "#F59E0B",
-    "Interviewed": "#8B5CF6",
-    "Offer": "#2b7a2b",
-    "Rejected": "#EF4444",
-    "Withdrawn": "#6B7280",
-}
-
-SectionDef = dict[str, Any]
-SectionCfg = dict[str, Any]
-
-
-# ---------------------------------------------------------------------------
-# Shared overlay base — handles styling, geometry, close-on-click-outside
-# ---------------------------------------------------------------------------
-
-class _BaseOverlay(QWidget):
+class BaseOverlay(QWidget):
     """
-    Common boilerplate for all overlays:
-    • dark semi-transparent background
-    • centred rounded dialog frame
-    • click-outside / Escape to cancel
-    • auto-resizes to parent
+    Base class for full-parent overlays with a centred dialog panel.
+    
+    Closing behaviour (X button, Escape key, click-outside) is handled here
+    and works identically for every subclass.
     """
 
-    def __init__(self, parent: QWidget, palette: QPalette, object_name: str, dialog_object_name: str):
+    def __init__(self, parent: QWidget, title: str) -> None:
         super().__init__(parent)
-
+        self._title_text = title
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName(object_name)
+        self.setObjectName("overlay")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        window_bg  = palette.color(QPalette.ColorRole.Window)
-        text_color = palette.color(QPalette.ColorRole.WindowText)
-        base_bg    = palette.color(QPalette.ColorRole.Base)
-        button_bg  = palette.color(QPalette.ColorRole.Button)
-        highlight  = palette.color(QPalette.ColorRole.Highlight)
-
-        dialog_bg    = window_bg.lighter(110)
-        border_color = window_bg.lighter(140)
-        hover_bg     = button_bg.lighter(120)
-
-        self.setStyleSheet("""
-            QWidget#%(obj)s { background-color: rgba(0, 0, 0, 180); }
-            QFrame#%(dlg)s {
-                border-radius: 12px;
-                border: 1px solid %(border)s;
-                background-color: %(dialog)s;
-            }
-            QLabel { color: %(text)s; }
-            QLineEdit, QTextEdit {
-                background-color: %(base)s; color: %(text)s;
-                border: 1px solid %(border)s; border-radius: 6px; padding: 6px;
-            }
-            QLineEdit:focus, QTextEdit:focus { border: 1px solid %(hl)s; }
-            QComboBox { border: 1px solid %(border)s; border-radius: 6px; padding: 6px; }
-            QPushButton {
-                background-color: %(btn)s; color: %(text)s;
-                border: 1px solid %(border)s; border-radius: 6px;
-                padding: 8px 16px; font-size: 13px;
-            }
-            QPushButton:hover { background-color: %(hover)s; }
-            QPushButton#saveCurrentBtn { background-color: %(hl)s; border: 1px solid %(hl)s; }
-            QPushButton#saveCurrentBtn:hover { background-color: %(hl2)s; }
-            QPushButton#saveAllBtn { background-color: %(hl)s; border: 1px solid %(hl)s; }
-            QPushButton#saveAllBtn:hover { background-color: %(hl2)s; }
-            QPushButton#closeBtn {
-                background-color: transparent; border: none;
-                font-size: 18px; padding: 4px 8px;
-            }
-            QPushButton#closeBtn:hover { background-color: rgba(128,128,128,50); border-radius: 6px; }
-            QScrollArea { border: none; background-color: transparent; }
-            QGroupBox { border: 1px solid %(border)s; border-radius: 8px; margin-top: 10px; }
-            QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 6px; }
-        """ % {
-            "obj":    object_name,
-            "dlg":    dialog_object_name,
-            "dialog": dialog_bg.name(),
-            "border": border_color.name(),
-            "text":   text_color.name(),
-            "base":   base_bg.name(),
-            "btn":    button_bg.name(),
-            "hover":  hover_bg.name(),
-            "hl":     highlight.name(),
-            "hl2":    highlight.darker(110).name(),
-        })
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(60, 40, 60, 80)
-        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.dialog = QFrame(self)
-        self.dialog.setObjectName(dialog_object_name)
-        self.dialog.setMinimumSize(300, 200)
-        outer.addWidget(self.dialog)
-
-        self.dialog_layout = QVBoxLayout(self.dialog)
-        self.dialog_layout.setContentsMargins(24, 20, 24, 24)
-        self.dialog_layout.setSpacing(16)
-
         self.installEventFilter(self)
 
-    # ── title row helper ────────────────────────────────────────────────────
+        self._build_ui()
 
-    def _add_title_row(self, title: str) -> None:
-        row = QHBoxLayout()
-        lbl = QLabel(title)
-        lbl.setStyleSheet("font-weight: 600; font-size: 18px;")
-        row.addWidget(lbl)
-        row.addStretch()
-        close_btn = QPushButton("✕")
+    def _build_ui(self) -> None:
+        """Build the fixed outer structure: backdrop -> dialog -> sections."""
+        # ── Outer frame and layouts ──────────────────────────────────────────
+        self.dialog = QFrame(self)
+        self.dialog.setObjectName("dialogFrame")
+        self.dialog.setMinimumSize(200, 200)
+
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(60, 40, 60, 80)
+        root_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        root_layout.addWidget(self.dialog)
+
+        dialog_layout = QVBoxLayout(self.dialog)
+        dialog_layout.setContentsMargins(24, 20, 24, 24)
+        dialog_layout.setSpacing(16)
+
+        # ── Title row ────────────────────────────────────────────────────────
+        title_row = QHBoxLayout()
+
+        title_label = QLabel(self._title_text)
+        title_label.setObjectName("dialogTitle")
+        title_label.setStyleSheet("font-weight: 600; font-size: 18px;")
+
+        close_btn = QPushButton("")
+        close_btn.setIcon(CloseIcon())
         close_btn.setObjectName("closeBtn")
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(self.close)
         close_btn.setFixedSize(32, 32)
-        row.addWidget(close_btn)
-        self.dialog_layout.addLayout(row)
 
-    # ── three-button footer ─────────────────────────────────────────────────
+        title_row.addWidget(title_label)
+        title_row.addStretch()
+        title_row.addWidget(close_btn)
 
-    def _add_action_buttons(self, on_current: Callable, on_all: Callable) -> None:
+        dialog_layout.addLayout(title_row)
+
+        # ── Form (scrollable) ────────────────────────────────────────────────
+        scroll_area = QScrollArea()
+        scroll_area.setObjectName("dialogScroll")
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            )
+        scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            )
+
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 8, 0)
+        scroll_layout.setSpacing(10)
+
+        scroll_area.setWidget(scroll_content)
+
+        self._build_form(scroll_layout)
+        dialog_layout.addWidget(scroll_area, stretch=1)
+
+        # ── Action buttons  ──────────────────────────────────────────────────
         actions = QHBoxLayout()
         actions.addStretch()
 
@@ -200,13 +147,17 @@ class _BaseOverlay(QWidget):
         save_current_btn = QPushButton("Save for this CV")
         save_current_btn.setObjectName("saveCurrentBtn")
         save_current_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_current_btn.clicked.connect(on_current)
+        save_current_btn.clicked.connect(
+            partial(self._persist, all_cvs = False)
+            )
         save_current_btn.setFixedHeight(36)
 
         save_all_btn = QPushButton("Save for all CVs")
         save_all_btn.setObjectName("saveAllBtn")
         save_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_all_btn.clicked.connect(on_all)
+        save_all_btn.clicked.connect(
+            partial(self._persist, all_cvs = True)
+            )
         save_all_btn.setFixedHeight(36)
 
         actions.addWidget(cancel_btn)
@@ -214,42 +165,64 @@ class _BaseOverlay(QWidget):
         actions.addWidget(save_current_btn)
         actions.addSpacing(8)
         actions.addWidget(save_all_btn)
-        self.dialog_layout.addLayout(actions)
 
-    # ── geometry / events ───────────────────────────────────────────────────
+        dialog_layout.addLayout(actions)
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        self._fit_to_parent()
+    def _persist(self, all_cvs: bool) -> None:
+        """
+        Persist the data into the current cv or the cv configuration.
+        Subclasses must override this.
+        """
+        #TODO: Ensure that this cannot be done the same for all overlays.
+        raise NotImplementedError
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._fit_to_parent()
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
+        """
+        Populate the scrollable area.  Called once during `__init__`.
+        Subclasses must override this.
+        """
+        raise NotImplementedError
 
-    def _fit_to_parent(self):
+    def _fit_to_parent(self) -> None:
+        """Resize overlay to match parent widget."""
         p = self.parentWidget()
         if p is not None:
             self.setGeometry(p.rect())
 
-    def eventFilter(self, obj, event):
+    def showEvent(self, event: QShowEvent) -> None:
+        """Resize overlay to match parent widget when showed."""
+        super().showEvent(event)
+        self._fit_to_parent()
+        self._on_show()
+
+    def resizeEvent(self, event: QShowEvent) -> None:
+        """Handle window resize to keep overlay covering parent."""
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def _on_show(self) -> None:
+        """
+        Called at the end of `showEvent`.  Override to, e.g., set
+        initial focus on a form field.
+        """
+        return
+
+    def eventFilter(self, obj: QObject, event: QShowEvent) -> bool:
+        """Close overlay when clicking outside the dialog panel."""
         if obj is self and event.type() == QEvent.Type.MouseButtonPress:
             if not self.dialog.geometry().contains(event.position().toPoint()):
                 self.close()
                 return True
         return super().eventFilter(obj, event)
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event: QShowEvent) -> None:
         if event.key() == Qt.Key.Key_Escape:
             self.close()
         else:
             super().keyPressEvent(event)
 
 
-# ---------------------------------------------------------------------------
-# _FieldEditOverlay  — edit exactly ONE field of ONE item
-# ---------------------------------------------------------------------------
-
-class _FieldEditOverlay(_BaseOverlay):
+class _FieldEditOverlay(BaseOverlay):
     """
     Edit a single field (identified by fdef) for a specific item_index.
     For allow_multiple fields this edits one *entry* inside the list,
@@ -259,9 +232,8 @@ class _FieldEditOverlay(_BaseOverlay):
     def __init__(
         self,
         parent: QWidget,
-        palette: QPalette,
-        section_def: SectionDef,
-        section_cfg: SectionCfg,
+        section_def: dict[str, Any],
+        section_cfg: dict[str, Any],
         item_index: int,
         field_name: str,
         config_path: str,
@@ -270,7 +242,6 @@ class _FieldEditOverlay(_BaseOverlay):
         entry_index: int | None = None,
         on_saved: Callable[[str, Any, bool], None] | None = None,
     ):
-        super().__init__(parent, palette, "fieldEditOverlay", "fieldEditDialogFrame")
 
         self.section_def  = dict(section_def or {})
         self.section_cfg  = dict(section_cfg or {})
@@ -288,33 +259,24 @@ class _FieldEditOverlay(_BaseOverlay):
             {}
         )
         flabel = self.fdef.get("label") or field_name
+        super().__init__(parent, f"Edit {flabel}")
 
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
         # Retrieve current value
         items = self.section_cfg.get("items") or []
-        item_payload = dict(items[item_index]) if 0 <= item_index < len(items) else {}
-        raw = item_payload.get(field_name)
+        item_payload = dict(items[self.item_index]) if 0 <= self.item_index < len(items) else {}
+        raw = item_payload.get(self.field_name)
 
-        if entry_index is not None:
+        if self.entry_index is not None:
             # Editing one entry inside an allow_multiple list
             entries = raw if isinstance(raw, list) else []
-            current_value = entries[entry_index] if 0 <= entry_index < len(entries) else field_default_value(self.fdef)
-            title = f"Edit {flabel} entry"
+            current_value = entries[self.entry_index] if 0 <= self.entry_index < len(entries) else field_default_value(self.fdef)
         else:
             current_value = raw if raw is not None else field_default_value(self.fdef)
-            title = f"Edit {flabel}"
-
-        self._add_title_row(title)
 
         # The single value editor widget
         self._editor = _build_value_widget(self.fdef, current_value)
-        self.dialog_layout.addWidget(self._editor)
-
-        self._add_action_buttons(
-            on_current=lambda: self._persist(all_cvs=False),
-            on_all=lambda: self._persist(all_cvs=True),
-        )
-
-        self.dialog.setMinimumWidth(420)
+        scroll_layout.addWidget(self._editor)
 
     def _persist(self, all_cvs: bool) -> None:
         if not self.section_name:
@@ -377,7 +339,7 @@ class _FieldEditOverlay(_BaseOverlay):
 # _AddEntryOverlay  — append one entry to an allow_multiple field
 # ---------------------------------------------------------------------------
 
-class _AddEntryOverlay(_BaseOverlay):
+class _AddEntryOverlay(BaseOverlay):
     """
     Adds a single new entry to an allow_multiple field inside an existing item.
     """
@@ -385,16 +347,13 @@ class _AddEntryOverlay(_BaseOverlay):
     def __init__(
         self,
         parent: QWidget,
-        palette: QPalette,
-        section_def: SectionDef,
-        section_cfg: SectionCfg,
+        section_def: dict[str, Any],
+        section_cfg: dict[str, Any],
         item_index: int,
         field_name: str,
         config_path: str,
         on_saved: Callable[[str, Any, bool], None] | None = None,
-    ):
-        super().__init__(parent, palette, "addEntryOverlay", "addEntryDialogFrame")
-
+        ):
         self.section_def  = dict(section_def or {})
         self.section_cfg  = dict(section_cfg or {})
         self.item_index   = item_index
@@ -404,23 +363,16 @@ class _AddEntryOverlay(_BaseOverlay):
         self.section_name = (self.section_def.get("name") or "").strip()
 
         self.fdef = next(
-            (f for f in (self.section_def.get("fields") or [])
+            (f for f in (section_def.get("fields") or [])
              if isinstance(f, dict) and f.get("name") == field_name),
             {}
         )
         flabel = self.fdef.get("label") or field_name
+        super().__init__(parent, f"Add {flabel}")
 
-        self._add_title_row(f"Add {flabel}")
-
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
         self._editor = _build_value_widget(self.fdef, field_default_value(self.fdef))
-        self.dialog_layout.addWidget(self._editor)
-
-        self._add_action_buttons(
-            on_current=lambda: self._persist(all_cvs=False),
-            on_all=lambda: self._persist(all_cvs=True),
-        )
-
-        self.dialog.setMinimumWidth(420)
+        scroll_layout.addWidget(self._editor)
 
     def _persist(self, all_cvs: bool) -> None:
         if not self.section_name:
@@ -475,20 +427,17 @@ class _AddEntryOverlay(_BaseOverlay):
 # _AddItemOverlay  — add a brand-new item (all fields at once)
 # ---------------------------------------------------------------------------
 
-class _AddItemOverlay(_BaseOverlay):
+class _AddItemOverlay(BaseOverlay):
     """Adds a complete new item to the section."""
 
     def __init__(
         self,
         parent: QWidget,
-        palette: QPalette,
-        section_def: SectionDef,
-        section_cfg: SectionCfg,
+        section_def: dict[str, Any],
+        section_cfg: dict[str, Any],
         config_path: str,
         on_saved: Callable[[str, dict[str, Any], bool], None] | None = None,
     ):
-        super().__init__(parent, palette, "addItemOverlay", "addItemDialogFrame")
-
         self.section_def  = dict(section_def or {})
         self.section_cfg  = dict(section_cfg or {})
         self.config_path  = config_path
@@ -497,34 +446,16 @@ class _AddItemOverlay(_BaseOverlay):
         self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
 
         singular = (self.section_def.get("item_label") or {}).get("singular") or "Item"
-        self._add_title_row(f"Add {singular}")
+        super().__init__(parent, f"Add {singular}")
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setContentsMargins(0, 0, 8, 0)
-        scroll_layout.setSpacing(14)
-
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
         self._item_editor = _ItemEditor(
             section_fields=self._fields_def(),
             payload=self._make_default_item_payload(),
-            palette=palette,
             allow_multiple=self.allow_multiple,
             on_remove=lambda: None,
         )
         scroll_layout.addWidget(self._item_editor)
-        scroll_layout.addStretch(1)
-        scroll_area.setWidget(scroll_content)
-        self.dialog_layout.addWidget(scroll_area, 1)
-
-        self._add_action_buttons(
-            on_current=lambda: self._persist(all_cvs=False),
-            on_all=lambda: self._persist(all_cvs=True),
-        )
-
-        self.dialog.setMinimumSize(500, 400)
 
     def _fields_def(self) -> list[dict[str, Any]]:
         fields = self.section_def.get("fields") or []
@@ -654,16 +585,14 @@ class _ReadonlyItemView(QFrame):
         item_index: int,
         allow_multiple: bool,          # whether the *section* allows multiple items
         on_edit_field: Callable[[str, int | None], None],   # (field_name, entry_index|None)
-        on_add_entry: Callable[[str], None],                   # (field_name)
-        palette: QPalette,
+        on_add_entry: Callable[[str], None],
     ):
         super().__init__()
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setObjectName("readonlyItemFrame")
 
-        p = palette
-        highlight  = p.color(QPalette.ColorRole.Highlight)
-        border_col = p.color(QPalette.ColorRole.Window).lighter(140)
+        highlight  = self.palette().color(QPalette.ColorRole.Highlight)
+        border_col = self.palette().color(QPalette.ColorRole.Window).lighter(140)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -843,15 +772,14 @@ class SectionSelectionPage(QWidget):
 
     def __init__(
         self,
-        palette: QPalette,
-        section_def: SectionDef,
+        section_def: dict[str, Any],
         config_path: str,
         parent: QWidget | None = None,
         on_item_saved: Callable[[str, dict[str, Any], bool], None] | None = None,
     ):
         super().__init__(parent)
 
-        self.palette_ref = palette
+        self.palette_ref = self.palette()
         self.cv_container = parent
         if not isinstance(section_def, dict):
             raise TypeError(
@@ -977,14 +905,14 @@ class SectionSelectionPage(QWidget):
     # Data loading & rendering
     # ------------------------------------------------------------------
 
-    def _load_section_cfg(self) -> SectionCfg:
+    def _load_section_cfg(self) -> dict[str, Any]:
         cv_cfg = self.cv_container.get_current_cv()
         return cv_cfg.get("sections").get(self.section_name)
 
     def _load_and_render(self) -> None:
         self._render(self._load_section_cfg())
 
-    def _render(self, section_cfg: SectionCfg) -> None:
+    def _render(self, section_cfg: dict[str, Any]) -> None:
         # Header
         default_title = self.section_def.get("default_title") or self.section_name.title()
         title = section_cfg.get("title_override") or default_title
@@ -1027,8 +955,7 @@ class SectionSelectionPage(QWidget):
                 allow_multiple=self.allow_multiple,
                 on_edit_field=lambda fn, ei, i=idx: self._open_field_overlay(i, fn, ei),
                 on_add_entry=lambda fn, i=idx: self._open_add_entry_overlay(i, fn),
-                palette=self.palette_ref,
-            )
+                )
             view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self._items_layout.insertWidget(self._items_layout.count() - 1, view)
 
@@ -1043,7 +970,6 @@ class SectionSelectionPage(QWidget):
 
         self._field_overlay = _FieldEditOverlay(
             parent=self,
-            palette=self.palette_ref,
             section_def=self.section_def,
             section_cfg=self._load_section_cfg(),
             item_index=item_index,
@@ -1062,7 +988,6 @@ class SectionSelectionPage(QWidget):
 
         self._add_entry_overlay = _AddEntryOverlay(
             parent=self,
-            palette=self.palette_ref,
             section_def=self.section_def,
             section_cfg=self._load_section_cfg(),
             item_index=item_index,
@@ -1080,7 +1005,6 @@ class SectionSelectionPage(QWidget):
 
         self._add_overlay = _AddItemOverlay(
             parent=self,
-            palette=self.palette_ref,
             section_def=self.section_def,
             section_cfg=self._load_section_cfg(),
             config_path=self.config_path,
@@ -1131,13 +1055,11 @@ class CVListPage(QWidget):
     def __init__(
         self,
         db: "JobDatabase",
-        palette: QPalette,
         paths: dict[str, Path],
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.db = db
-        self.palette = palette
         self.paths = paths
         self._build_ui()
         self._load_data()
@@ -1356,14 +1278,12 @@ class TargetApplicationPage(QWidget):
     def __init__(
         self,
         db: JobDatabase,
-        palette: QPalette,
         section_name: str,
         section_label: str,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.db = db
-        self.palette = palette
         self.section_name = section_name
         self.section_label = section_label
         self._build_ui()
@@ -1382,7 +1302,7 @@ class TargetApplicationPage(QWidget):
         self.searchbar.setPlaceholderText("Search jobs by company, position, or location...")
         self.searchbar.setClearButtonEnabled(True)
         self.searchbar.textChanged.connect(self.update_jobs_displayed)
-        self.searchbar.addAction(SEARCH_ICON, QLineEdit.ActionPosition.LeadingPosition)
+        self.searchbar.addAction(SearchIcon(), QLineEdit.ActionPosition.LeadingPosition)
         self.completer = QCompleter()
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
@@ -1401,9 +1321,17 @@ class TargetApplicationPage(QWidget):
         filter_row.setContentsMargins(0, 0, 0, 0)
         filter_row.setSpacing(8)
         filter_row.addWidget(QLabel())
+
+        filter_icon_label = QLabel()
+        filter_icon_label.setPixmap(FilterIcon().pixmap(16, 16))
+        filter_icon_label.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
+            )
         filter_by_label = QLabel("Filter by:")
         filter_by_label.setObjectName("filterByLabel")
         filter_by_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        filter_row.addWidget(filter_icon_label)
         filter_row.addWidget(filter_by_label)
 
         self.status_filter = NoScrollComboBox()
@@ -1607,13 +1535,11 @@ class CVEditorContainer(QWidget):
     def __init__(
         self,
         db: JobDatabase,
-        palette: QPalette,
         paths: dict[str, Path],
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.db = db
-        self.palette = palette
         self.paths = paths
         self.section_defs = []
         self.cv_data = {}
@@ -1677,7 +1603,7 @@ class CVEditorContainer(QWidget):
         self._show_section("target_application")
 
     def _create_target_app_page(self, section_name: str, section_label: str) -> None:
-        page = TargetApplicationPage(self.db, self.palette, section_name, section_label, self)
+        page = TargetApplicationPage(self.db, section_name, section_label, self)
         self.content_stack.addWidget(page)
         self.section_pages[section_name] = page
 
@@ -1689,7 +1615,6 @@ class CVEditorContainer(QWidget):
                 f"Ensure _load_sections() is called before _create_section_page()."
             )
         page = SectionSelectionPage(
-            palette=self.palette,
             section_def=section_def,
             config_path=str(self.paths.get("config")),
             parent=self,
@@ -1726,13 +1651,11 @@ class CVBuilderPage(QWidget):
     def __init__(
         self,
         db: JobDatabase,
-        palette: QPalette,
         paths: dict[str, Path],
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.db      = db
-        self.palette = palette
         self.paths   = paths
 
         self.layout = QVBoxLayout(self)
@@ -1741,15 +1664,16 @@ class CVBuilderPage(QWidget):
         self.subpages = QStackedWidget()
         self.layout.addWidget(self.subpages)
 
-        self.main_page = CVListPage(db, palette, paths, self)
+        self.main_page = CVListPage(db, paths, self)
         self.main_page.create_cv_clicked.connect(self._show_cv_editor)
 
-        self.editor_container = CVEditorContainer(db, palette, paths, self)
+        self.editor_container = CVEditorContainer(db, paths, self)
         # TODO: Delete all the information from the CVEditorContainer when returning to main list
         self.editor_container.back_to_list.connect(self._show_main_list)
 
         self.subpages.addWidget(self.main_page)
         self.subpages.addWidget(self.editor_container)
+        self._apply_stylesheet()
 
     def _show_main_list(self) -> None:
         self.subpages.setCurrentWidget(self.main_page)
@@ -1758,3 +1682,54 @@ class CVBuilderPage(QWidget):
         self.editor_container.set_cv_information(cv)
         self.editor_container.load_cv_ui()
         self.subpages.setCurrentWidget(self.editor_container)
+
+    def _apply_stylesheet(self) -> None:
+        """Apply consolidated stylesheet for all components."""
+        window_bg = self.palette().color(QPalette.ColorRole.Window)
+        text_color = self.palette().color(QPalette.ColorRole.WindowText)
+        base_bg = self.palette().color(QPalette.ColorRole.Base)
+        button_bg = self.palette().color(QPalette.ColorRole.Button)
+        highlight = self.palette().color(QPalette.ColorRole.Highlight)
+        
+        dialog_bg = window_bg.lighter(110)
+        border_color = window_bg.lighter(140)
+        hover_bg = button_bg.lighter(120)
+        stylesheet = f"""
+            /* ==================== OVERLAY BACKGROUNDS ==================== */
+            QWidget#overlay {{ background-color: rgba(0, 0, 0, 180); }}
+
+            /* ======================= DIALOG FRAMES ======================= */
+            QFrame#dialogFrame{{
+                border-radius: 12px;
+                border: 1px solid {border_color.name()};
+                background-color: {dialog_bg.name()};
+                }}
+            
+            
+            QLabel {{ color: {text_color.name()}; }}
+            QLineEdit, QTextEdit {{
+                background-color: {base_bg.name()}; color: {text_color.name()};
+                border: 1px solid {border_color.name()}; border-radius: 6px; padding: 6px;
+            }}
+            QLineEdit:focus, QTextEdit:focus {{ border: 1px solid {highlight.name()}; }}
+            QComboBox {{ border: 1px solid {border_color.name()}; border-radius: 6px; padding: 6px; }}
+            QPushButton {{
+                background-color: {button_bg.name()}; color: {text_color.name()};
+                border: 1px solid {border_color.name()} border-radius: 6px;
+                padding: 8px 16px; font-size: 13px;
+            }}
+            QPushButton:hover {{ background-color: {hover_bg.name()}; }}
+            QPushButton#saveCurrentBtn {{ background-color: {highlight.name()}; border: 1px solid {highlight.name()}; }}
+            QPushButton#saveCurrentBtn:hover {{ background-color: {highlight.darker(110).name()}; }}
+            QPushButton#saveAllBtn {{ background-color: {highlight.name()}; border: 1px solid {highlight.name()}; }}
+            QPushButton#saveAllBtn:hover {{ background-color: {highlight.darker(110).name()}; }}
+            QPushButton#closeBtn {{
+                background-color: transparent; border: none;
+                font-size: 18px; padding: 4px 8px;
+            }}
+            QPushButton#closeBtn:hover {{ background-color: rgba(128,128,128,50); border-radius: 6px; }}
+            QScrollArea {{ border: none; background-color: transparent; }}
+            QGroupBox {{ border: 1px solid {border_color.name()}; border-radius: 8px; margin-top: 10px; }}
+            QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 6px; }}
+            """
+        self.setStyleSheet(stylesheet)
