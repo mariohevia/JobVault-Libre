@@ -114,7 +114,7 @@ class JobApplicationCard(QWidget):
                 color: #ffffff;
                 background-color: {status_badge_color};
                 }}
-            """)
+                """)
 
         top_row.addWidget(self.company_label)
         top_row.addStretch()
@@ -163,42 +163,47 @@ class JobApplicationCard(QWidget):
         self.on_view(self.job)
 
 
-class AddApplicationOverlay(QWidget):
+class BaseOverlay(QWidget):
     """
-    An in-window overlay (covers parent) to add a job application
-    The overlay closes when:
-    - pressing the X button
-    - pressing the Cancel button
-    - clicking outside the popup panel
-    - pressing Escape
+    Base class for full-parent overlays with a centred dialog panel.
+ 
+    Subclasses must implement `_build_form`, which receives the
+    `scroll_layout` (a `QVBoxLayout` inside the scrollable area) and
+    should populate it with form content.
+ 
+    The title row always contains a title label and a close button.
+    Extra buttons (e.g. an Edit icon) can be injected before the close
+    button by overriding `_title_row_extra_buttons` and returning
+    a list of `QPushButton` instances.
+ 
+    Action buttons (Save, Cancel, Delete) sit below the scroll area in a
+    non-scrollable row.  Override `_build_action_buttons` and add
+    widgets to the supplied `QHBoxLayout`.
+ 
+    Closing behaviour (X button, Escape key, click-outside) is handled here
+    and works identically for every subclass.
     """
     def __init__(
-        self, 
-        parent: QWidget, 
-        on_submit: Callable[[NewJobDict], None]
+        self,
+        parent: QWidget,
+        title: str,
+        object_name: str,
         ) -> None:
         super().__init__(parent)
-        self.on_submit = on_submit
-
-        self._build_ui()
-
-        # Input validation styles
-        self._base_style = ""
-        self._error_style = "border: 2px solid #dc3545 !important;"
-
-        # Capture outside clicks
+        self._title_text = title
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setObjectName(object_name)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.installEventFilter(self)
 
-    def _build_ui(self) -> None:
-        """Initializes the layout, creates widgets, and assembles the UI"""
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName("addOverlay")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.__build_shell()
 
+    def __build_shell(self) -> None:
+        """Build the fixed outer structure: backdrop -> dialog -> sections."""
         # ── Outer frame and layouts ──────────────────────────────────────────
         self.dialog = QFrame(self)
         self.dialog.setObjectName("dialogFrame")
-        self.dialog.setMinimumSize(200,500)
+        self.dialog.setMinimumSize(200, 500)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(60, 40, 60, 80)
@@ -209,9 +214,27 @@ class AddApplicationOverlay(QWidget):
         dialog_layout.setSpacing(16)
 
         # ── Title row (NOT scrollable) ───────────────────────────────────────
+        dialog_layout.addLayout(self.__build_title_row())
+
+        # ── Form (scrollable) ────────────────────────────────────────────────
+        scroll_area, scroll_layout = self.__build_scroll_area()
+        self._build_form(scroll_layout)
+        dialog_layout.addWidget(scroll_area, stretch=1)
+
+        # ── Action buttons (NOT scrollable) ──────────────────────────────────
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self._build_action_buttons(actions)
+        dialog_layout.addLayout(actions)
+
+        root_layout.addWidget(self.dialog)
+
+    def __build_title_row(self) -> QHBoxLayout:
+        """Build the title row including extra buttons."""
         title_row = QHBoxLayout()
-        title = QLabel("Add Application")
-        title.setObjectName("dialogTitle")
+
+        title_label = QLabel(self._title_text)
+        title_label.setObjectName("dialogTitle")
 
         close_btn = QPushButton("")
         close_btn.setIcon(CloseIcon())
@@ -219,14 +242,18 @@ class AddApplicationOverlay(QWidget):
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(self.close)
         close_btn.setFixedSize(32, 32)
-        
-        title_row.addWidget(title)
+
+        title_row.addWidget(title_label)
         title_row.addStretch()
+        for btn in self._title_row_extra_buttons():
+            title_row.addWidget(btn)
         title_row.addWidget(close_btn)
 
-        dialog_layout.addLayout(title_row)
+        return title_row
 
-        # ── Form (scrollable) ────────────────────────────────────────────────
+    @staticmethod
+    def __build_scroll_area() -> tuple[QScrollArea, QVBoxLayout]:
+        """Build the scroll area."""
         scroll_area = QScrollArea()
         scroll_area.setObjectName("dialogScroll")
         scroll_area.setWidgetResizable(True)
@@ -242,9 +269,208 @@ class AddApplicationOverlay(QWidget):
         scroll_layout.setContentsMargins(0, 0, 8, 0)
         scroll_layout.setSpacing(10)
 
+        scroll_area.setWidget(scroll_content)
+        return scroll_area, scroll_layout
+
+    def _title_row_extra_buttons(self) -> list[QPushButton]:
+        """
+        Return extra buttons inserted between the title label and the close
+        button.  Default: no extra buttons.
+        """
+        return []
+
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
+        """
+        Populate the scrollable area.  Called once during `__init__`.
+        Subclasses must override this.
+        """
+        raise NotImplementedError
+
+    def _build_action_buttons(self, actions: QHBoxLayout) -> None:
+        """
+        Add action buttons to the pre-stretched `actions` layout.
+        Default: no buttons (overlay only has the close button in the title).
+        """
+        return
+
+    def _fit_to_parent(self) -> None:
+        """Resize overlay to match parent widget."""
+        p = self.parentWidget()
+        if p is not None:
+            self.setGeometry(p.rect())
+
+    def showEvent(self, event: QShowEvent) -> None:
+        """Resize overlay to match parent widget when showed."""
+        super().showEvent(event)
+        self._fit_to_parent()
+        self._on_show()
+
+    def resizeEvent(self, event: QShowEvent) -> None:
+        """Handle window resize to keep overlay covering parent."""
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def _on_show(self) -> None:
+        """
+        Called at the end of `showEvent`.  Override to, e.g., set
+        initial focus on a form field.
+        """
+        return
+
+    def eventFilter(self, obj: QObject, event: QShowEvent) -> bool:
+        """Close overlay when clicking outside the dialog panel."""
+        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
+            if not self.dialog.geometry().contains(event.position().toPoint()):
+                self.close()
+                return True
+        return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event: QShowEvent) -> None:
+        """Close overlay on Escape."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
+
+    @staticmethod
+    def _make_form() -> tuple[QGridLayout, Qt.AlignmentFlag, Qt.AlignmentFlag]:
+        """
+        Return a configured QGridLayout plus the two standard label alignments.
+        """
         form = QGridLayout()
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
+        label_alignment = (
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+        label_alignment_top = (
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+            )
+        return form, label_alignment, label_alignment_top
+
+    @staticmethod
+    def _add_pair(
+        form: QGridLayout,
+        row: int,
+        left_label: QLabel,
+        left_widget: QWidget,
+        right_label: QLabel,
+        right_widget: QWidget,
+        alignment: Qt.AlignmentFlag,
+        ) -> None:
+        form.addWidget(left_label, row, 0, alignment=alignment)
+        form.addWidget(left_widget, row, 1)
+        form.addWidget(right_label, row, 2, alignment=alignment)
+        form.addWidget(right_widget, row, 3)
+
+    @staticmethod
+    def _add_single(
+        form: QGridLayout,
+        row: int,
+        label: QLabel,
+        widget: QWidget,
+        alignment: Qt.AlignmentFlag,
+        ) -> None:
+        form.addWidget(label, row, 0, alignment=alignment)
+        form.addWidget(widget, row, 1, 1, 3)
+
+    @staticmethod
+    def _create_label(text: str, required: bool = False) -> QLabel:
+        """Return a form label with an optional required (*) marker."""
+        return QLabel(f"{text} *" if required else text)
+
+    @staticmethod
+    def _connect_status(
+        status_combo: NoScrollComboBox,
+        date_widget: NoScrollDateEdit,
+        ) -> None:
+        """Wire up the status combo so it enables/disables the date widget."""
+    
+        def on_status_changed(text: str) -> None:
+            is_not_applied = text == "Not Applied"
+            if is_not_applied:
+                date_widget.setSpecialValueText(" ")
+                date_widget.setDate(date_widget.minimumDate())
+                date_widget.setEnabled(False)
+            else:
+                date_widget.setSpecialValueText("")
+                if date_widget.date() == date_widget.minimumDate():
+                    date_widget.setDate(QDate.currentDate())
+                date_widget.setEnabled(True)
+    
+        status_combo.currentTextChanged.connect(on_status_changed)
+
+    @staticmethod
+    def _connect_work_arrangement(
+        arrangement_combo: NoScrollComboBox,
+        office_days_combo: NoScrollComboBox,
+        ) -> None:
+        """Wire up the arrangement combo so it enables/disables office-days."""
+
+        def on_arrangement_changed(text: str) -> None:
+            is_hybrid = text == "Hybrid"
+            office_days_combo.setEnabled(is_hybrid)
+            if is_hybrid:
+                idx = office_days_combo.findText("N/A")
+                office_days_combo.removeItem(idx)
+                office_days_combo.setCurrentIndex(0)
+            else:
+                if office_days_combo.findText("N/A") == -1:
+                    office_days_combo.addItem("N/A")
+                idx = office_days_combo.findText("N/A")
+                office_days_combo.setCurrentIndex(idx)
+    
+        arrangement_combo.currentTextChanged.connect(on_arrangement_changed)
+
+    @staticmethod
+    def _parse_office_days(text: str) -> int | None:
+        if text == "N/A":
+            return None
+        if text == "Not specified":
+            return 0
+        return int(text)
+
+    @staticmethod
+    def _validate_required(
+        field: QLineEdit,
+        error_style: str,
+        base_style: str,
+    ) -> bool:
+        """Apply error/base styling and return True when the field is non-empty."""
+        if not field.text().strip():
+            field.setStyleSheet(error_style)
+            return False
+        field.setStyleSheet(base_style)
+        return True
+
+
+class AddApplicationOverlay(BaseOverlay):
+    """
+    An in-window overlay (covers parent) to add a job application
+    The overlay closes when:
+    - pressing the X button
+    - pressing the Cancel button
+    - clicking outside the popup panel
+    - pressing Escape
+    """
+
+    _ERROR_STYLE = "border: 2px solid #dc3545 !important;"
+    _BASE_STYLE = ""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        on_submit: Callable[[NewJobDict], None],
+        ) -> None:
+        self.on_submit = on_submit
+        super().__init__(
+            parent, 
+            title="Add Application", 
+            object_name="addOverlay"
+            )
+
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
+        form, label_align, label_align_top = self._make_form()
 
         self.company = QLineEdit()
         self.company.setObjectName("formInput")
@@ -258,18 +484,18 @@ class AddApplicationOverlay(QWidget):
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
         self.status.setCurrentIndex(1)
-        self.status.currentTextChanged.connect(self._on_status_changed)
+
+        self.date_applied = NoScrollDateEdit()
+        self.date_applied.setObjectName("formDate")
+        self._connect_status(self.status, self.date_applied)
 
         self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
 
         self.work_arrangement = NoScrollComboBox()
-        self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
         self.work_arrangement.setObjectName("formCombo")
-        self.work_arrangement.currentTextChanged.connect(
-            self._on_work_arrangement_changed
-            )
+        self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
 
         self.office_days = NoScrollComboBox()
         self.office_days.addItems(
@@ -277,10 +503,7 @@ class AddApplicationOverlay(QWidget):
             )
         self.office_days.setObjectName("formCombo")
         self.office_days.setEnabled(False)
-
-        self.company_website = QLineEdit()
-        self.company_website.setObjectName("formInput")
-        self.company_website.setPlaceholderText("https://...")
+        self._connect_work_arrangement(self.work_arrangement, self.office_days)
 
         self.location = QLineEdit()
         self.location.setObjectName("formInput")
@@ -290,8 +513,9 @@ class AddApplicationOverlay(QWidget):
         self.source.setObjectName("formInput")
         self.source.setPlaceholderText("e.g., LinkedIn")
 
-        self.date_applied = NoScrollDateEdit()
-        self.date_applied.setObjectName("formDate")
+        self.salary_range = QLineEdit()
+        self.salary_range.setObjectName("formInput")
+        self.salary_range.setPlaceholderText("e.g., £100k - £150k")
 
         self.contact_name = QLineEdit()
         self.contact_name.setObjectName("formInput")
@@ -301,9 +525,9 @@ class AddApplicationOverlay(QWidget):
         self.contact_email.setObjectName("formInput")
         self.contact_email.setPlaceholderText("email@company.com")
 
-        self.salary_range = QLineEdit()
-        self.salary_range.setObjectName("formInput")
-        self.salary_range.setPlaceholderText("e.g., £100k - £150k")
+        self.company_website = QLineEdit()
+        self.company_website.setObjectName("formInput")
+        self.company_website.setPlaceholderText("https://...")
 
         self.job_url = QLineEdit()
         self.job_url.setObjectName("formInput")
@@ -322,37 +546,6 @@ class AddApplicationOverlay(QWidget):
         self.notes.setPlaceholderText("Additional notes...")
         self.notes.setAcceptRichText(True)
         self.notes.setFixedHeight(150)
-
-        label_alignment = (
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            )
-        label_alignment_single = (
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
-            )
-
-        def add_pair(
-            row: int, 
-            left_label: QLabel, 
-            left_widget: QWidget, 
-            right_label: QLabel, 
-            right_widget: QWidget
-            ) -> None:
-            form.addWidget(left_label, row, 0, alignment=label_alignment)
-            form.addWidget(left_widget, row, 1)
-            form.addWidget(right_label, row, 2, alignment=label_alignment)
-            form.addWidget(right_widget, row, 3)
-
-        def add_single(
-            row: int, 
-            label: QLabel, 
-            widget: QWidget, 
-            alignment: Qt.AlignmentFlag | None = None
-            ) -> None:
-            if alignment:
-                form.addWidget(label, row, 0, alignment=alignment)
-            else:
-                form.addWidget(label, row, 0, alignment=label_alignment)
-            form.addWidget(widget, row, 1, 1, 3)
 
         pairs = [
             (
@@ -380,36 +573,32 @@ class AddApplicationOverlay(QWidget):
                 ("Contact email", False), self.contact_email
             ),
             ]
-
         for row, (l_meta, l_widget, r_meta, r_widget) in enumerate(pairs):
-            l_text, l_required = l_meta
-            r_text, r_required = r_meta
-            add_pair(
-                row,
-                self._create_label(l_text, required=l_required), l_widget,
-                self._create_label(r_text, required=r_required), r_widget,
+            self._add_pair(
+                form, row,
+                self._create_label(*l_meta), l_widget,
+                self._create_label(*r_meta), r_widget,
+                label_align,
                 )
+
         singles = [
-            ("Job URL", self.job_url, None),
-            ("Company website", self.company_website, None),
-            ("Job description", self.job_description, label_alignment_single),
-            ("Notes", self.notes, label_alignment_single),
+            ("Job URL", self.job_url, label_align),
+            ("Company website", self.company_website, label_align),
+            ("Job description", self.job_description, label_align_top),
+            ("Notes", self.notes, label_align_top),
             ]
-
-        start_row = len(pairs)
-
-        for offset, (text, widget, alignment) in enumerate(singles):
-            add_single(start_row + offset, QLabel(text), widget, alignment)
+        for offset, (text, widget, align) in enumerate(singles):
+            self._add_single(
+                form, 
+                len(pairs) + offset, 
+                QLabel(text), 
+                widget, 
+                align
+                )
 
         scroll_layout.addLayout(form)
-        scroll_area.setWidget(scroll_content)
-        
-        dialog_layout.addWidget(scroll_area, 1)  
-        
-        # ── Action buttons (NOT scrollable) ──────────────────────────────────
-        actions = QHBoxLayout()
-        actions.addStretch()
 
+    def _build_action_buttons(self, actions: QHBoxLayout) -> None:
         cancel = QPushButton("Cancel")
         cancel.setObjectName("cancelBtn")
         cancel.clicked.connect(self.close)
@@ -425,92 +614,46 @@ class AddApplicationOverlay(QWidget):
         actions.addWidget(cancel)
         actions.addSpacing(8)
         actions.addWidget(save)
-        dialog_layout.addLayout(actions)
 
-        root_layout.addWidget(self.dialog)
-
-    def _create_label(self, text: str, required: bool = False) -> QLabel:
-        """Create a form label with optional required indicator."""
-        label_text = f"{text} *" if required else text
-        label = QLabel(label_text)
-        return label
-
-    def _on_status_changed(self, text: str) -> None:
-        """Disable and clear date_applied when status is 'Not Applied'."""
-        is_not_applied = (text == "Not Applied")
-        if is_not_applied:
-            self.date_applied.setSpecialValueText(" ")
-            self.date_applied.setDate(self.date_applied.minimumDate())
-            self.date_applied.setEnabled(False)
-        else:
-            self.date_applied.setSpecialValueText("")
-            if self.date_applied.date() == self.date_applied.minimumDate():
-                self.date_applied.setDate(QDate.currentDate())
-            self.date_applied.setEnabled(True)
-
-    def _on_work_arrangement_changed(self, text: str) -> None:
-        """Disable office_days and set to 'N/A' when status is 'Hybrid'."""
-        is_hybrid = (text == "Hybrid")
-        self.office_days.setEnabled(is_hybrid)
-
-        if is_hybrid:
-            idx = self.office_days.findText("N/A")
-            self.office_days.removeItem(idx)
-            self.office_days.setCurrentIndex(0)
-        else:
-            if self.office_days.findText("N/A") == -1:
-                self.office_days.addItem("N/A")
-            idx = self.office_days.findText("N/A")
-            self.office_days.setCurrentIndex(idx)
+    def _on_show(self) -> None:
+        self.position.setFocus()
 
     def _submit(self) -> None:
         """Validate and submit the form."""
-        company = self.company.text().strip()
-        position = self.position.text().strip()
-        status = self.status.currentText().strip()
-        job_type = self.job_type.currentText().strip()
-        work_arrangement = self.work_arrangement.currentText().strip()
-        office_days = self.office_days.currentText().strip()
-        if office_days=="N/A":
-            office_days = None 
-        elif office_days=="Not specified":
-            office_days = 0
-        else:
-            office_days = int(office_days)
-
-        is_valid = True
-        
-        if not company:
-            self.company.setStyleSheet(self._error_style)
-            is_valid = False
-        else:
-            self.company.setStyleSheet(self._base_style)
-            
-        if not position:
-            self.position.setStyleSheet(self._error_style)
-            is_valid = False
-        else:
-            self.position.setStyleSheet(self._base_style)
-
-        if not is_valid:
+        valid = all([
+            self._validate_required(
+                self.company, 
+                self._ERROR_STYLE, 
+                self._BASE_STYLE
+                ),
+            self._validate_required(
+                self.position, 
+                self._ERROR_STYLE, 
+                self._BASE_STYLE
+                ),
+            ])
+        if not valid:
             return
 
+        status = self.status.currentText().strip()
+        office_days = self._parse_office_days(
+            self.office_days.currentText().strip()
+            )
         if status == "Not Applied":
             date_applied_value = None
         else:
             date_applied_value = self.date_applied.date().toString(
                 Qt.DateFormat.ISODate) or None
-
         payload = NewJobDict({
-            "company": company,
-            "position": position,
+            "company": self.company.text().strip(),
+            "position": self.position.text().strip(),
             "status": status,
-            "work_arrangement": work_arrangement,
+            "work_arrangement": self.work_arrangement.currentText().strip(),
             "office_days": office_days,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
             "source": self.source.text().strip() or None,
-            "job_type": job_type,
+            "job_type": self.job_type.currentText().strip(),
             "date_applied": date_applied_value,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
@@ -526,40 +669,9 @@ class AddApplicationOverlay(QWidget):
 
         self.on_submit(payload)
         self.close()
-        
-    def _fit_to_parent(self) -> None:
-        """Resize overlay to match parent widget."""
-        p = self.parentWidget()
-        if p is not None:
-            self.setGeometry(p.rect())
 
-    def showEvent(self, event: QShowEvent) -> None:
-        """Resize overlay to match parent widget when showed."""
-        super().showEvent(event)
-        self._fit_to_parent()
-        self.position.setFocus()
-        
-    def resizeEvent(self, event: QShowEvent) -> None:
-        """Handle window resize to keep overlay covering parent."""
-        super().resizeEvent(event)
-        self._fit_to_parent()
 
-    def eventFilter(self, obj: QObject, event: QShowEvent) -> bool:
-        """Close overlay when clicking outside the dialog."""
-        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
-            if not self.dialog.geometry().contains(event.position().toPoint()):
-                self.close()
-                return True
-        return super().eventFilter(obj, event)
-
-    def keyPressEvent(self, event: QShowEvent) -> None:
-        """Handle Escape key to close overlay."""
-        if event.key() == Qt.Key.Key_Escape:
-            self.close()
-        else:
-            super().keyPressEvent(event)
-
-class ViewApplicationOverlay(QWidget):
+class ViewApplicationOverlay(BaseOverlay):
     """
     In-window overlay (covers parent) to view a job application
     The overlay closes when:
@@ -571,46 +683,22 @@ class ViewApplicationOverlay(QWidget):
     Shows all values (read-only) and provides Edit and Remove buttons.
     """
     def __init__(
-        self, 
-        parent: QWidget, 
-        job: JobDict, 
-        on_remove: Callable[[int], None], 
-        on_edit: Callable[[JobDict], None]
+        self,
+        parent: QWidget,
+        job: JobDict,
+        on_remove: Callable[[int], None],
+        on_edit: Callable[[JobDict], None],
         ) -> None:
-        super().__init__(parent)
         self.job = JobDict(job)
         self.on_remove = on_remove
         self.on_edit = on_edit
+        super().__init__(
+            parent, 
+            title="Application Details",
+            object_name="viewOverlay"
+            )
 
-        self._build_ui()
-
-        # Capture outside clicks
-        self.installEventFilter(self)
-
-    def _build_ui(self) -> None:
-        """Initializes the layout, creates widgets, and assembles the UI"""
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName("viewOverlay")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        # ── Outer frame and layouts ──────────────────────────────────────────
-        self.dialog = QFrame(self)
-        self.dialog.setObjectName("dialogFrame")
-        self.dialog.setMinimumSize(200, 500)
-
-        root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(60, 40, 60, 80)
-        root_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        dialog_layout = QVBoxLayout(self.dialog)
-        dialog_layout.setContentsMargins(24, 20, 24, 24)
-        dialog_layout.setSpacing(16)
-
-        # ── Title row (NOT scrollable) ───────────────────────────────────────
-        title_row = QHBoxLayout()
-        title = QLabel("Application Details")
-        title.setObjectName("dialogTitle")
-
+    def _title_row_extra_buttons(self) -> list[QPushButton]:
         edit_btn = QPushButton("")
         edit_btn.setIcon(EditIcon())
         edit_btn.setObjectName("editBtn")
@@ -618,47 +706,10 @@ class ViewApplicationOverlay(QWidget):
         edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         edit_btn.clicked.connect(self._open_edit_overlay)
         edit_btn.setFixedSize(32, 32)
+        return [edit_btn]
 
-        close_btn = QPushButton("")
-        close_btn.setIcon(CloseIcon())
-        close_btn.setObjectName("closeBtn")
-        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.clicked.connect(self.close)
-        close_btn.setFixedSize(32, 32)
-
-        title_row.addWidget(title)
-        title_row.addStretch()
-        title_row.addWidget(edit_btn)
-        title_row.addWidget(close_btn)
-
-        dialog_layout.addLayout(title_row)
-
-        # ── Read-only fields (scrollable) ────────────────────────────────────
-        scroll_area = QScrollArea()
-        scroll_area.setObjectName("dialogScroll")
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-        scroll_area.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-            )
-
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setContentsMargins(0, 0, 8, 0)
-        scroll_layout.setSpacing(10)
-
-        form = QGridLayout()
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(10)
-
-        label_alignment = (
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            )
-        label_alignment_single = (
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
-            )
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
+        form, label_align, label_align_top = self._make_form()
 
         def make_value_label(key: str) -> QLabel:
             value = self.job[key]
@@ -683,34 +734,6 @@ class ViewApplicationOverlay(QWidget):
             value_label.setWordWrap(True)
             return value_label
 
-        def add_pair(
-            row: int, 
-            left_text: str, 
-            left_key: str, 
-            right_text: str, 
-            right_key: str
-            ) -> None:
-            form.addWidget(
-                QLabel(left_text), row, 0, alignment=label_alignment
-                )
-            form.addWidget(make_value_label(left_key), row, 1)
-            form.addWidget(
-                QLabel(right_text), row, 2, alignment=label_alignment
-                )
-            form.addWidget(make_value_label(right_key), row, 3)
-
-        def add_single(
-            row: int, 
-            text: str, 
-            key: str, 
-            alignment: Qt.AlignmentFlag | None = None
-            ) -> None:
-            if alignment:
-                form.addWidget(QLabel(text), row, 0, alignment=alignment)
-            else:
-                form.addWidget(QLabel(text), row, 0, alignment=label_alignment)
-            form.addWidget(make_value_label(key), row, 1, 1, 3)
-
         pairs = [
             ("Job title", "position", 
              "Company", "company"),
@@ -727,30 +750,33 @@ class ViewApplicationOverlay(QWidget):
         ]
 
         for row, (l_text, l_key, r_text, r_key) in enumerate(pairs):
-            add_pair(row, l_text, l_key, r_text, r_key)
+            self._add_pair(
+                form, row,
+                QLabel(l_text), make_value_label(l_key),
+                QLabel(r_text), make_value_label(r_key),
+                label_align,
+            )
 
         singles = [
-            ("Job URL", "job_url", None),
-            ("Company website", "company_website", None),
-            ("Job description", "job_description", label_alignment_single),
-            ("Notes", "notes", label_alignment_single),
-            ("Last update", "last_update", None),
-        ]
-
-        start_row = len(pairs)
-
-        for offset, (text, key, alignment) in enumerate(singles):
-            add_single(start_row + offset, text, key, alignment)
+            ("Job URL", "job_url", label_align),
+            ("Company website", "company_website", label_align),
+            ("Job description", "job_description", label_align_top),
+            ("Notes", "notes", label_align_top),
+            ("Last update", "last_update", label_align),
+            ]
+        for offset, (text, key, align) in enumerate(singles):
+            self._add_single(
+                form, 
+                len(pairs) + offset, 
+                QLabel(text), 
+                make_value_label(key), 
+                align
+                )
 
         scroll_layout.addLayout(form)
         scroll_layout.addStretch(1)
-        scroll_area.setWidget(scroll_content)
-        dialog_layout.addWidget(scroll_area, 1)
 
-        # ── Action buttons (NOT scrollable) ──────────────────────────────────
-        actions = QHBoxLayout()
-        actions.addStretch()
-
+    def _build_action_buttons(self, actions: QHBoxLayout) -> None:
         close = QPushButton("Close")
         close.setObjectName("cancelBtn")
         close.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -766,9 +792,6 @@ class ViewApplicationOverlay(QWidget):
         actions.addWidget(close)
         actions.addSpacing(8)
         actions.addWidget(remove)
-        dialog_layout.addLayout(actions)
-
-        root_layout.addWidget(self.dialog)
 
     def _open_edit_overlay(self) -> None:
         """Invokes the edit callback and closes the current dialog."""
@@ -790,44 +813,13 @@ class ViewApplicationOverlay(QWidget):
             "Are you sure you want to delete the application for"
             f" {pos_text}{org_text}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+            )
         if reply == QMessageBox.StandardButton.Yes:
             job_id = self.job["id"]
             self.on_remove(int(job_id))
             self.close()
 
-    def _fit_to_parent(self) -> None:
-        """Resize overlay to match parent widget."""
-        p = self.parentWidget()
-        if p is not None:
-            self.setGeometry(p.rect())
-
-    def showEvent(self, event: QShowEvent) -> None:
-        """Resize overlay to match parent widget when showed."""
-        super().showEvent(event)
-        self._fit_to_parent()
-
-    def resizeEvent(self, event: QShowEvent) -> None:
-        """Handle window resize to keep overlay covering parent."""
-        super().resizeEvent(event)
-        self._fit_to_parent()
-
-    def eventFilter(self, obj: QObject, event: QShowEvent) -> bool:
-        """Close overlay when clicking outside the dialog."""
-        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
-            if not self.dialog.geometry().contains(event.position().toPoint()):
-                self.close()
-                return True
-        return super().eventFilter(obj, event)
-
-    def keyPressEvent(self, event: QShowEvent) -> None:
-        """Handle Escape key to close overlay."""
-        if event.key() == Qt.Key.Key_Escape:
-            self.close()
-        else:
-            super().keyPressEvent(event)
-
-class EditApplicationOverlay(QWidget):
+class EditApplicationOverlay(BaseOverlay):
     """
     An in-window overlay (covers parent) to edit a job application
     The overlay closes when:
@@ -836,6 +828,10 @@ class EditApplicationOverlay(QWidget):
     - clicking outside the popup panel
     - pressing Escape
     """
+
+    _ERROR_STYLE = "border: 2px solid #dc3545 !important;"
+    _BASE_STYLE = ""
+
     def __init__(
         self, 
         parent: QWidget, 
@@ -843,76 +839,17 @@ class EditApplicationOverlay(QWidget):
         on_save: Callable[dict[Any], None], 
         on_remove: Callable[[int], None], 
         ) -> None:
-        super().__init__(parent)
         self.job = JobDict(job)
         self.on_save = on_save
         self.on_remove = on_remove
-
-        self._build_ui()
-
-        # Input validation styles
-        self._base_style = ""
-        self._error_style = "border: 2px solid #dc3545 !important;"
-
-        # Capture outside clicks
-        self.installEventFilter(self)
-
-    def _build_ui(self) -> None:
-        """Initializes the layout, creates widgets, and assembles the UI"""
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setObjectName("editOverlay")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        # ── Outer frame and layouts ──────────────────────────────────────────
-        self.dialog = QFrame(self)
-        self.dialog.setObjectName("dialogFrame")
-        self.dialog.setMinimumSize(200, 500)
-
-        root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(60, 40, 60, 80)
-        root_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        dialog_layout = QVBoxLayout(self.dialog)
-        dialog_layout.setContentsMargins(24, 20, 24, 24)
-        dialog_layout.setSpacing(16)
-
-        # ── Title row (NOT scrollable) ───────────────────────────────────────
-        title_row = QHBoxLayout()
-        title = QLabel("Edit Application")
-        title.setObjectName("dialogTitle")
-
-        close_btn = QPushButton("")
-        close_btn.setIcon(CloseIcon())
-        close_btn.setObjectName("closeBtn")
-        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.clicked.connect(self.close)
-        close_btn.setFixedSize(32, 32)
-
-        title_row.addWidget(title)
-        title_row.addStretch()
-        title_row.addWidget(close_btn)
-
-        dialog_layout.addLayout(title_row)
-
-        # ── Form (scrollable) ────────────────────────────────────────────────
-        scroll_area = QScrollArea()
-        scroll_area.setObjectName("dialogScroll")
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-        scroll_area.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        super().__init__(
+            parent, 
+            title="Edit Application", 
+            object_name="editOverlay"
             )
 
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setContentsMargins(0, 0, 8, 0)
-        scroll_layout.setSpacing(10)
-
-        form = QGridLayout()
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(10)
+    def _build_form(self, scroll_layout: QVBoxLayout) -> None:
+        form, label_align, label_align_top = self._make_form()
 
         self.company = QLineEdit(self.job["company"])
         self.company.setObjectName("formInput")
@@ -925,30 +862,32 @@ class EditApplicationOverlay(QWidget):
         self.status = NoScrollComboBox()
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
-        current_status = (self.job["status"] or "").strip()
-        idx = self.status.findText(current_status)
+        idx = self.status.findText((self.job["status"] or "").strip())
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
-        self.status.currentTextChanged.connect(self._on_status_changed)
+
+        existing_date_str = self.job["date_applied"] or ""
+        date = QDate.fromString(existing_date_str, Qt.DateFormat.ISODate)
+        self.date_applied = NoScrollDateEdit(
+            date=date if date.isValid() else None
+            )
+        self.date_applied.setObjectName("formDate")
+        self._connect_status(self.status, self.date_applied)
 
         self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
-        current_job_type = (self.job["job_type"] or "").strip()
-        idx = self.job_type.findText(current_job_type)
+        idx = self.job_type.findText((self.job["job_type"] or "").strip())
         self.job_type.setCurrentIndex(idx if idx >= 0 else 0)
 
         self.work_arrangement = NoScrollComboBox()
-        self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
         self.work_arrangement.setObjectName("formCombo")
+        self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
         current_work_arrangement = (
             self.job["work_arrangement"] or ""
             ).strip()
         idx = self.work_arrangement.findText(current_work_arrangement)
         self.work_arrangement.setCurrentIndex(idx if idx >= 0 else 0)
-        self.work_arrangement.currentTextChanged.connect(
-            self._on_work_arrangement_changed
-            )
-        
+
         self.office_days = NoScrollComboBox()
         self.office_days.setObjectName("formCombo")
         current_office_days = self.job["office_days"]
@@ -962,10 +901,7 @@ class EditApplicationOverlay(QWidget):
                 ["Not specified"]+[str(i) for i in range(1,5)]
                 )
             self.office_days.setCurrentIndex(current_office_days)
-
-        self.company_website = QLineEdit(self.job["company_website"] or "")
-        self.company_website.setObjectName("formInput")
-        self.company_website.setPlaceholderText("https://...")
+        self._connect_work_arrangement(self.work_arrangement, self.office_days)
 
         self.location = QLineEdit(self.job["location"] or "")
         self.location.setObjectName("formInput")
@@ -975,12 +911,9 @@ class EditApplicationOverlay(QWidget):
         self.source.setObjectName("formInput")
         self.source.setPlaceholderText("e.g., LinkedIn")
 
-        existing_date_str = self.job["date_applied"] or ""
-        date = QDate.fromString(existing_date_str, Qt.DateFormat.ISODate)
-        self.date_applied = NoScrollDateEdit(
-            date=date if date.isValid() else None
-            )
-        self.date_applied.setObjectName("formDate")
+        self.salary_range = QLineEdit(self.job["salary_range"] or "")
+        self.salary_range.setObjectName("formInput")
+        self.salary_range.setPlaceholderText("e.g., £100k - £150k")
 
         self.contact_name = QLineEdit(self.job["contact_name"] or "")
         self.contact_name.setObjectName("formInput")
@@ -990,9 +923,9 @@ class EditApplicationOverlay(QWidget):
         self.contact_email.setObjectName("formInput")
         self.contact_email.setPlaceholderText("email@company.com")
 
-        self.salary_range = QLineEdit(self.job["salary_range"] or "")
-        self.salary_range.setObjectName("formInput")
-        self.salary_range.setPlaceholderText("e.g., £100k - £150k")
+        self.company_website = QLineEdit(self.job["company_website"] or "")
+        self.company_website.setObjectName("formInput")
+        self.company_website.setPlaceholderText("https://...")
 
         self.job_url = QLineEdit(self.job["job_url"] or "")
         self.job_url.setObjectName("formInput")
@@ -1006,47 +939,13 @@ class EditApplicationOverlay(QWidget):
         self.job_description.setAcceptRichText(True)
         self.job_description.setHtml(self.job["job_description"] or "")
         self.job_description.setFixedHeight(150)
-        
+
         self.notes = BaseColourTextEdit()
         self.notes.setObjectName("formTextEdit")
         self.notes.setPlaceholderText("Additional notes...")
         self.notes.setAcceptRichText(True)
         self.notes.setHtml(self.job["notes"] or "")
         self.notes.setFixedHeight(150)
-
-        label_alignment = (
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            )
-        label_alignment_single = (
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
-            )
-        def add_pair(
-            row: int, 
-            left_label: QLabel, 
-            left_widget: QWidget, 
-            right_label: QLabel, 
-            right_widget: QWidget
-            ) -> None:
-            form.addWidget(
-                left_label, row, 0, alignment=label_alignment
-                )
-            form.addWidget(left_widget, row, 1)
-            form.addWidget(
-                right_label, row, 2, alignment=label_alignment
-                )
-            form.addWidget(right_widget, row, 3)
-
-        def add_single(
-            row: int, 
-            label: QLabel, 
-            widget: QWidget, 
-            alignment: Qt.AlignmentFlag | None = None
-            ) -> None:
-            if alignment:
-                form.addWidget(label, row, 0, alignment=alignment)
-            else:
-                form.addWidget(label, row, 0, alignment=label_alignment)
-            form.addWidget(widget, row, 1, 1, 3)
 
         pairs = [
             (
@@ -1074,37 +973,32 @@ class EditApplicationOverlay(QWidget):
                 ("Contact email", False), self.contact_email
             ),
             ]
-
         for row, (l_meta, l_widget, r_meta, r_widget) in enumerate(pairs):
-            l_text, l_required = l_meta
-            r_text, r_required = r_meta
-            add_pair(
-                row,
-                self._create_label(l_text, required=l_required), l_widget,
-                self._create_label(r_text, required=r_required), r_widget,
+            self._add_pair(
+                form, row,
+                self._create_label(*l_meta), l_widget,
+                self._create_label(*r_meta), r_widget,
+                label_align,
                 )
 
         singles = [
-            ("Job URL", self.job_url, None),
-            ("Company website", self.company_website, None),
-            ("Job description", self.job_description, label_alignment_single),
-            ("Notes", self.notes, label_alignment_single),
+            ("Job URL", self.job_url, label_align),
+            ("Company website", self.company_website, label_align),
+            ("Job description", self.job_description, label_align_top),
+            ("Notes", self.notes, label_align_top),
             ]
-
-        start_row = len(pairs)
-
-        for offset, (text, widget, alignment) in enumerate(singles):
-            add_single(start_row + offset, QLabel(text), widget, alignment)
+        for offset, (text, widget, align) in enumerate(singles):
+            self._add_single(
+                form, 
+                len(pairs) + offset, 
+                QLabel(text), 
+                widget, 
+                align
+                )
 
         scroll_layout.addLayout(form)
-        scroll_area.setWidget(scroll_content)
 
-        dialog_layout.addWidget(scroll_area, 1)
-
-        # ── Action buttons (NOT scrollable) ──────────────────────────────────
-        actions = QHBoxLayout()
-        actions.addStretch()
-
+    def _build_action_buttons(self, actions: QHBoxLayout) -> None:
         cancel = QPushButton("Cancel")
         cancel.setObjectName("cancelBtn")
         cancel.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1128,43 +1022,9 @@ class EditApplicationOverlay(QWidget):
         actions.addWidget(remove)
         actions.addSpacing(8)
         actions.addWidget(save)
-        dialog_layout.addLayout(actions)
 
-        root_layout.addWidget(self.dialog)
-
-    def _create_label(self, text: str, required: bool = False) -> QLabel:
-        """Create a form label with optional required indicator."""
-        label_text = f"{text} *" if required else text
-        label = QLabel(label_text)
-        return label
-
-    def _on_status_changed(self, text: str) -> None:
-        """Disable and clear date_applied when status is 'Not Applied'."""
-        is_not_applied = (text == "Not Applied")
-        if is_not_applied:
-            self.date_applied.setSpecialValueText(" ")
-            self.date_applied.setDate(self.date_applied.minimumDate())
-            self.date_applied.setEnabled(False)
-        else:
-            self.date_applied.setSpecialValueText("")
-            if self.date_applied.date() == self.date_applied.minimumDate():
-                self.date_applied.setDate(QDate.currentDate())
-            self.date_applied.setEnabled(True)
-
-    def _on_work_arrangement_changed(self, text: str) -> None:
-        """Disable office_days and set to 'N/A' when status is 'Hybrid'."""
-        is_hybrid = (text == "Hybrid")
-        self.office_days.setEnabled(is_hybrid)
-
-        if is_hybrid:
-            idx = self.office_days.findText("N/A")
-            self.office_days.removeItem(idx)
-            self.office_days.setCurrentIndex(0)
-        else:
-            if self.office_days.findText("N/A") == -1:
-                self.office_days.addItem("N/A")
-            idx = self.office_days.findText("N/A")
-            self.office_days.setCurrentIndex(idx)
+    def _on_show(self) -> None:
+        self.position.setFocus()
 
     def _remove(self) -> None:
         """
@@ -1181,60 +1041,51 @@ class EditApplicationOverlay(QWidget):
             "Are you sure you want to delete the application for"
             f" {pos_text}{org_text}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+            )
         if reply == QMessageBox.StandardButton.Yes:
             job_id = self.job["id"]
             self.on_remove(int(job_id))
             self.close()
 
     def _save(self) -> None:
-        job_id = self.job["id"]
-        company = self.company.text().strip()
-        position = self.position.text().strip()
-        status = self.status.currentText().strip()
-        job_type = self.job_type.currentText().strip()
-        work_arrangement = self.work_arrangement.currentText().strip()
-        office_days = self.office_days.currentText().strip()
-        if office_days=="N/A":
-            office_days = None 
-        elif office_days=="Not specified":
-            office_days = 0
-        else:
-            office_days = int(office_days)
-
-        is_valid = True
-
-        if not company:
-            self.company.setStyleSheet(self._error_style)
-            is_valid = False
-        else:
-            self.company.setStyleSheet(self._base_style)
-            
-        if not position:
-            self.position.setStyleSheet(self._error_style)
-            is_valid = False
-        else:
-            self.position.setStyleSheet(self._base_style)
-
-        if not is_valid:
+        valid = all([
+            self._validate_required(
+                self.company, 
+                self._ERROR_STYLE, 
+                self._BASE_STYLE
+                ),
+            self._validate_required(
+                self.position, 
+                self._ERROR_STYLE, 
+                self._BASE_STYLE
+                ),
+            ])
+        if not valid:
             return
 
+        status = self.status.currentText().strip()
+        office_days = self._parse_office_days(
+            self.office_days.currentText().strip()
+            )
         if status == "Not Applied":
             date_applied_value = None
         else:
-            date_applied_value = self.date_applied.date().toString(Qt.DateFormat.ISODate) or None
+            date_applied_value = (
+                self.date_applied.date().toString(Qt.DateFormat.ISODate)
+                or None
+                )
 
         current = JobDict({
-            "id": job_id,
-            "company": company,
-            "position": position,
+            "id": self.job["id"],
+            "company": self.company.text().strip(),
+            "position": self.position.text().strip(),
             "status": status,
-            "work_arrangement": work_arrangement,
+            "work_arrangement": self.work_arrangement.currentText().strip(),
             "office_days": office_days,
             "company_website": self.company_website.text().strip() or None,
             "location": self.location.text().strip() or None,
             "source": self.source.text().strip() or None,
-            "job_type": job_type,
+            "job_type": self.job_type.currentText().strip(),
             "date_applied": date_applied_value,
             "contact_name": self.contact_name.text().strip() or None,
             "contact_email": self.contact_email.text().strip() or None,
@@ -1258,37 +1109,9 @@ class EditApplicationOverlay(QWidget):
                 changes[k] = new_v
 
         if changes:
-            self.on_save(int(job_id), changes)
+            self.on_save(int(self.job["id"]), changes)
 
         self.close()
-
-    def _fit_to_parent(self) -> None:
-        """Resize overlay to match parent widget."""
-        p = self.parentWidget()
-        if p is not None:
-            self.setGeometry(p.rect())
-
-    def showEvent(self, event: QShowEvent) -> None:
-        super().showEvent(event)
-        self._fit_to_parent()
-        self.position.setFocus()
-
-    def resizeEvent(self, event: QShowEvent) -> None:
-        super().resizeEvent(event)
-        self._fit_to_parent()
-
-    def eventFilter(self, obj: QObject, event: QShowEvent) -> bool:
-        if obj is self and event.type() == QEvent.Type.MouseButtonPress:
-            if not self.dialog.geometry().contains(event.position().toPoint()):
-                self.close()
-                return True
-        return super().eventFilter(obj, event)
-
-    def keyPressEvent(self, event: QShowEvent) -> None:
-        if event.key() == Qt.Key.Key_Escape:
-            self.close()
-        else:
-            super().keyPressEvent(event)
 
 class TrackerPage(QWidget):
 
