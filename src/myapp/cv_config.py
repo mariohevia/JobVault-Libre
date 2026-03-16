@@ -927,6 +927,7 @@ def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
         w.setAcceptRichText(False)
         w.setPlainText("" if value is None else str(value))
         w.setFixedHeight(110)
+        w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         ph = (fdef.get("placeholder") or "").strip()
         if ph:
             w.setPlaceholderText(ph)

@@ -83,6 +83,7 @@ class BaseOverlay(QWidget):
         self.dialog = QFrame(self)
         self.dialog.setObjectName("dialogFrame")
         self.dialog.setMinimumSize(200, 200)
+        self.dialog.setMaximumWidth(600)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(60, 40, 60, 80)
@@ -94,7 +95,7 @@ class BaseOverlay(QWidget):
         dialog_layout.setContentsMargins(24, 20, 24, 24)
         dialog_layout.setSpacing(16)
 
-        # ── Title row ────────────────────────────────────────────────────────
+        # ── Title row (NOT scrollable) ───────────────────────────────────────
         title_row = QHBoxLayout()
 
         title_label = QLabel(self._title_text)
@@ -114,28 +115,15 @@ class BaseOverlay(QWidget):
 
         dialog_layout.addLayout(title_row)
 
-        # ── Form (scrollable) ────────────────────────────────────────────────
-        scroll_area = QScrollArea()
-        scroll_area.setObjectName("dialogScroll")
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-            )
-        scroll_area.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-            )
+        # ── Form ─────────────────────────────────────────────────────────────
+        form_layout = QVBoxLayout()
+        form_layout.setContentsMargins(0, 0, 0, 0)
+        form_layout.setSpacing(10)
 
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setContentsMargins(0, 0, 8, 0)
-        scroll_layout.setSpacing(10)
+        self._build_form(form_layout)
+        dialog_layout.addLayout(form_layout)
 
-        scroll_area.setWidget(scroll_content)
-
-        self._build_form(scroll_layout)
-        dialog_layout.addWidget(scroll_area, stretch=1)
-
-        # ── Action buttons  ──────────────────────────────────────────────────
+        # ── Action buttons (NOT scrollable) ──────────────────────────────────
         actions = QHBoxLayout()
         actions.addStretch()
 
@@ -237,32 +225,27 @@ class _FieldEditOverlay(BaseOverlay):
         item_index: int,
         field_name: str,
         config_path: str,
-        # For allow_multiple fields — which entry inside the list to edit.
-        # None means "this field is not a list field".
         entry_index: int | None = None,
         on_saved: Callable[[str, Any, bool], None] | None = None,
-    ):
+        ):
 
-        self.section_def  = dict(section_def or {})
-        self.section_cfg  = dict(section_cfg or {})
-        self.item_index   = item_index
-        self.field_name   = field_name
-        self.entry_index  = entry_index
-        self.config_path  = config_path
-        self.on_saved     = on_saved
-        self.section_name = (self.section_def.get("name") or "").strip()
+        section_def = dict(section_def)
+        self.section_cfg = dict(section_cfg)
+        self.item_index = item_index
+        self.field_name = field_name
+        self.entry_index = entry_index
+        self.config_path = config_path
+        self.on_saved = on_saved
+        self.section_name = section_def["name"].strip()
 
-        # Locate the field definition
         self.fdef = next(
-            (f for f in (self.section_def.get("fields") or [])
-             if isinstance(f, dict) and f.get("name") == field_name),
-            {}
-        )
+            (f for f in (section_def["fields"])
+            if f["name"] == field_name)
+            )
         flabel = self.fdef.get("label") or field_name
         super().__init__(parent, f"Edit {flabel}")
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
-        # Retrieve current value
         items = self.section_cfg.get("items") or []
         item_payload = dict(items[self.item_index]) if 0 <= self.item_index < len(items) else {}
         raw = item_payload.get(self.field_name)
@@ -765,8 +748,8 @@ class SectionSelectionPage(QWidget):
     Read-only display page for a single section's saved data.
 
     • Each field has a ✎ button that opens a single-field edit overlay.
-    • allow_multiple fields also show a ＋ Add button per field.
-    • A footer "＋ Add <item>" button (only when section allow_multiple=True)
+    • allow_multiple fields also show a + Add button per field.
+    • A footer "+ Add <item>" button (only when section allow_multiple=True)
       opens the full new-item overlay (_AddItemOverlay).
     """
 
@@ -1537,8 +1520,9 @@ class CVEditorContainer(QWidget):
         db: JobDatabase,
         paths: dict[str, Path],
         parent: QWidget | None = None,
-    ):
+        ) -> None:
         super().__init__(parent)
+
         self.db = db
         self.paths = paths
         self.section_defs = []
@@ -1613,12 +1597,12 @@ class CVEditorContainer(QWidget):
             raise ValueError(
                 f"_create_section_page: no section_def found for {section_name!r}. "
                 f"Ensure _load_sections() is called before _create_section_page()."
-            )
+                )
         page = SectionSelectionPage(
             section_def=section_def,
             config_path=str(self.paths.get("config")),
             parent=self,
-        )
+            )
         self.content_stack.addWidget(page)
         self.section_pages[section_name] = page
 
@@ -1653,27 +1637,32 @@ class CVBuilderPage(QWidget):
         db: JobDatabase,
         paths: dict[str, Path],
         parent: QWidget | None = None,
-    ):
+        ):
         super().__init__(parent)
         self.db      = db
         self.paths   = paths
 
+        self._build_ui()
+        
+        self._apply_stylesheet()
+
+    def _build_ui(self) -> None:
+        """Initializes the layout, creates widgets, and assembles the UI"""
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
         self.subpages = QStackedWidget()
         self.layout.addWidget(self.subpages)
 
-        self.main_page = CVListPage(db, paths, self)
+        self.main_page = CVListPage(self.db, self.paths, self)
         self.main_page.create_cv_clicked.connect(self._show_cv_editor)
 
-        self.editor_container = CVEditorContainer(db, paths, self)
+        self.editor_container = CVEditorContainer(self.db, self.paths, self)
         # TODO: Delete all the information from the CVEditorContainer when returning to main list
         self.editor_container.back_to_list.connect(self._show_main_list)
 
         self.subpages.addWidget(self.main_page)
         self.subpages.addWidget(self.editor_container)
-        self._apply_stylesheet()
 
     def _show_main_list(self) -> None:
         self.subpages.setCurrentWidget(self.main_page)
