@@ -443,10 +443,10 @@ class SectionSettingsOverlay(QWidget):
           { field_name: ["value", ... ] } for multiple fields.
         """
         out: dict[str, Any] = {}
-        for fdef in self._fields_def():
-            fname = fdef["name"]
-            is_multi = bool(fdef.get("allow_multiple", False))
-            base = field_default_value(fdef)
+        for field_def in self._fields_def():
+            fname = field_def["name"]
+            is_multi = bool(field_def.get("allow_multiple", False))
+            base = field_default_value(field_def)
 
             if is_multi:
                 out[fname] = [base]
@@ -652,27 +652,27 @@ class _ItemEditor(QFrame):
         
         current_row = 0
         current_col = 0
-        for fdef in self.section_fields:
-            fname = fdef["name"]
-            flabel = fdef.get("label") or fname
-            is_multi = bool(fdef.get("allow_multiple", False))
-            show_name = bool(fdef.get("show_name", True))
-            layout_width = str(fdef.get("layout_width", 'full'))
+        for field_def in self.section_fields:
+            fname = field_def["name"]
+            flabel = field_def.get("label") or fname
+            is_multi = bool(field_def.get("allow_multiple", False))
+            show_name = bool(field_def.get("show_name", True))
+            layout_width = str(field_def.get("layout_width", 'full'))
             initial = self.payload.get(fname)
             
             if is_multi:
                 if not isinstance(initial, list):
                     initial = [initial]
                 editor = _MultiFieldEditor(
-                    fdef=fdef, 
+                    field_def=field_def, 
                     initial_list=initial, 
                     show_name=show_name, 
                     flabel=flabel
                     )
             else:
                 if initial is None:
-                    initial = field_default_value(fdef)
-                editor = _SingleFieldEditor(fdef=fdef, initial_value=initial, show_name=show_name, flabel=flabel)
+                    initial = field_default_value(field_def)
+                editor = _SingleFieldEditor(field_def=field_def, initial_value=initial, show_name=show_name, flabel=flabel)
             self._field_editors[fname] = editor
             if layout_width == 'full' or is_multi:
                 if current_col != 0:
@@ -720,15 +720,15 @@ class _SingleFieldEditor(QWidget):
     Renders one field editor + 'Show field in CV Builder' checkbox.
     """
 
-    def __init__(self, fdef: dict[str, Any], initial_value: Any, show_name: bool, flabel: str):
+    def __init__(self, field_def: dict[str, Any], initial_value: Any, show_name: bool, flabel: str):
         super().__init__()
-        self.fdef = fdef
+        self.field_def = field_def
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        self.editor = _build_value_widget(fdef, initial_value)
+        self.editor = _build_value_widget(field_def, initial_value)
 
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
@@ -742,7 +742,7 @@ class _SingleFieldEditor(QWidget):
         layout.addWidget(self.editor)
 
     def to_payload(self) -> dict[str, Any]:
-        return _read_value_widget(self.fdef, self.editor)
+        return _read_value_widget(self.field_def, self.editor)
 
 
 
@@ -757,12 +757,12 @@ class _MultiFieldEditor(QWidget):
 
     def __init__(
         self, 
-        fdef: dict[str, Any], 
+        field_def: dict[str, Any], 
         initial_list: list[Any], 
         show_name: bool, 
         flabel: str):
         super().__init__()
-        self.fdef = fdef
+        self.field_def = field_def
         self.rows: list[tuple[QWidget, QPushButton | None]] = []
 
         outer = QVBoxLayout(self)
@@ -776,19 +776,19 @@ class _MultiFieldEditor(QWidget):
 
         for entry in (initial_list or []):
             if entry is None:
-                entry = field_default_value(fdef)
+                entry = field_default_value(field_def)
             self._add_row(value=entry, flabel=flabel, show_name=show_name)
 
         # ensure at least one
         if not self.rows:
-            self._add_row(value=field_default_value(fdef), flabel=flabel, show_name=show_name)
+            self._add_row(value=field_default_value(field_def), flabel=flabel, show_name=show_name)
 
         add_row = QHBoxLayout()
         add_row.addStretch()
         add_btn = QPushButton("＋ Add another")
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.clicked.connect(lambda: self._add_row(
-            value=field_default_value(self.fdef), 
+            value=field_default_value(self.field_def), 
             flabel=flabel, 
             show_name=show_name))
         add_btn.setFixedHeight(30)
@@ -856,7 +856,7 @@ class _MultiFieldEditor(QWidget):
 
         row_l.addLayout(controls)
 
-        editor = _build_value_widget(self.fdef, value)
+        editor = _build_value_widget(self.field_def, value)
         row_l.addWidget(editor)
 
         self.rows_container.addWidget(row_wrap)
@@ -907,36 +907,36 @@ class _MultiFieldEditor(QWidget):
     def to_payload(self) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for editor, _ in self.rows:
-            out.append(_read_value_widget(self.fdef, editor))
+            out.append(_read_value_widget(self.field_def, editor))
         return out
 
 
-def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
-    ftype = fdef.get("type")
+def _build_value_widget(field_def: dict[str, Any], value: Any) -> QWidget:
+    field_type = field_def.get("type")
 
-    if ftype == "string":
+    if field_type == "string":
         w = QLineEdit()
         w.setText("" if value is None else str(value))
-        ph = (fdef.get("placeholder") or "").strip()
+        ph = (field_def.get("placeholder") or "").strip()
         if ph:
             w.setPlaceholderText(ph)
         return w
 
-    if ftype == "multiline":
+    if field_type == "multiline":
         w = QTextEdit()
         w.setAcceptRichText(False)
         w.setPlainText("" if value is None else str(value))
         w.setFixedHeight(110)
         w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        ph = (fdef.get("placeholder") or "").strip()
+        ph = (field_def.get("placeholder") or "").strip()
         if ph:
             w.setPlaceholderText(ph)
         return w
 
-    if ftype == "enum":
+    if field_type == "enum":
         w = NoScrollComboBox()
         ADD_NEW = "Add new..."
-        opts = fdef.get("options") or []
+        opts = field_def.get("options") or []
         if isinstance(opts, list):
             w.addItems([str(o) for o in opts])
         current = "" if value is None else str(value)
@@ -970,7 +970,7 @@ def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
 
         return w
 
-    if ftype == "year_month":
+    if field_type == "year_month":
         # store as dict {"year": int, "month": int}
         y = None
         m = None
@@ -1010,7 +1010,7 @@ def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
         lay.addStretch()
         return wrap
 
-    if ftype == "number":
+    if field_type == "number":
         w = QLineEdit()
         w.setValidator(QIntValidator())
         if value is None:
@@ -1021,8 +1021,8 @@ def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
             w.setText("0")
         return w
 
-    if ftype == "object":
-        gb = QGroupBox(fdef.get("label") or "Details")
+    if field_type == "object":
+        gb = QGroupBox(field_def["label"])
         vlay = QVBoxLayout(gb)
         vlay.setContentsMargins(12, 10, 12, 12)
         vlay.setSpacing(10)
@@ -1032,9 +1032,9 @@ def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(10)
 
-        fields = fdef.get("fields") or []
+        fields = field_def.get("fields") or []
         if not isinstance(value, dict):
-            value = field_default_value(fdef)
+            value = field_default_value(field_def)
 
         gb._sub_editors = {}  # type: ignore[attr-defined]
 
@@ -1057,22 +1057,22 @@ def _build_value_widget(fdef: dict[str, Any], value: Any) -> QWidget:
     return w
 
 
-def _read_value_widget(fdef: dict[str, Any], widget: QWidget) -> Any:
-    ftype = fdef.get("type")
+def _read_value_widget(field_def: dict[str, Any], widget: QWidget) -> Any:
+    field_type = field_def.get("type")
 
-    if ftype == "string":
+    if field_type == "string":
         assert isinstance(widget, QLineEdit)
         return widget.text()
 
-    if ftype == "multiline":
+    if field_type == "multiline":
         assert isinstance(widget, QTextEdit)
         return widget.toPlainText()
 
-    if ftype == "enum":
+    if field_type == "enum":
         assert isinstance(widget, NoScrollComboBox)
         return widget.currentText()
 
-    if ftype == "year_month":
+    if field_type == "year_month":
         year = widget._year_combo  # type: ignore[attr-defined]
         month = widget._month_combo  # type: ignore[attr-defined]
         try:
@@ -1085,7 +1085,7 @@ def _read_value_widget(fdef: dict[str, Any], widget: QWidget) -> Any:
             m = date.today().month
         return {"year": y, "month": m}
 
-    if ftype == "number":
+    if field_type == "number":
         assert isinstance(widget, QLineEdit)
         txt = (widget.text() or "").strip()
         if txt == "":
@@ -1095,7 +1095,7 @@ def _read_value_widget(fdef: dict[str, Any], widget: QWidget) -> Any:
         except Exception:
             return 0
 
-    if ftype == "object":
+    if field_type == "object":
         sub_map = widget._sub_editors  # type: ignore[attr-defined]
         out: dict[str, Any] = {}
         for name, (sub_def, sub_w) in sub_map.items():

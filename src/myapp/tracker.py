@@ -803,6 +803,7 @@ class ViewApplicationOverlay(BaseOverlay):
             self.on_remove(int(job_id))
             self.close()
 
+
 class EditApplicationOverlay(BaseOverlay):
     """
     An in-window overlay (covers parent) to edit a job application

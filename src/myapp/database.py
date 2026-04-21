@@ -327,7 +327,7 @@ class JobDatabase:
             SELECT id, title, created_at, updated_at, newest_version_id
             FROM cv_group
             ORDER BY updated_at DESC
-        """)
+            """)
         return self.cursor.fetchall()
 
     def get_newest_cv_json_path(self, cv_group_id: int) -> Optional[str]:
@@ -345,7 +345,7 @@ class JobDatabase:
             FROM cv_group g
             JOIN cv_version v ON v.id = g.newest_version_id
             WHERE g.id = ?
-        """, (cv_group_id,))
+            """, (cv_group_id,))
 
         row = self.cursor.fetchone()
         return row[0] if row else None

@@ -151,8 +151,10 @@ def get_app_paths_for_user(app_name: str, user_id: str) -> dict[str, Path]:
         "db": profile_dir / "database.sqlite",
         "config": profile_dir / "config.json",
         "cache": profile_dir / "cache",
-    }
+        "cvs": profile_dir / "cvs",
+        }
     paths["cache"].mkdir(parents=True, exist_ok=True)
+    paths["cvs"].mkdir(parents=True, exist_ok=True)
     return paths
 
 def save_full_config(config_path: str, full_cfg: dict[str, Any]) -> None:
@@ -248,7 +250,7 @@ def create_empty_config(section_defs: list[dict] | None = None) -> dict:
             }
         }
 
-def load_full_config(config_path):
+def load_full_config(config_path: str) -> dict:
     if not config_path:
         raise RuntimeError("Configuration path not found")
 
@@ -287,7 +289,6 @@ def load_cv_config(config_path: str) -> dict[str, Any]:
 def load_section_names_from_yaml() -> list[dict]:
     """
     Load the static section schema from myapp/resources/section_types.yml
-    Adjust "myapp.resources" if your package name differs.
     """
     try:
         with resources.files("myapp.resources").joinpath("section_types.yml").open(

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, Callable
 from functools import partial
+from copy import deepcopy
 
 from PyQt6.QtWidgets import (
     QWidget,
@@ -21,7 +22,6 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QGroupBox,
-    QMessageBox,
     )
 
 from PyQt6.QtGui import QIcon, QPalette, QFont, QShowEvent
@@ -50,6 +50,7 @@ from myapp.cv_config import (
     )
 from myapp.icons import (
     SearchIcon,
+    EditIcon, 
     FilterIcon,
     CloseIcon,
     )
@@ -58,6 +59,7 @@ from myapp.constants import (
     JOB_TYPE_OPTIONS,
     WORK_ARRANGEMENT_OPTIONS,
     )
+
 
 class BaseOverlay(QWidget):
     """
@@ -161,7 +163,6 @@ class BaseOverlay(QWidget):
         Persist the data into the current cv or the cv configuration.
         Subclasses must override this.
         """
-        #TODO: Ensure that this cannot be done the same for all overlays.
         raise NotImplementedError
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
@@ -212,7 +213,7 @@ class BaseOverlay(QWidget):
 
 class _FieldEditOverlay(BaseOverlay):
     """
-    Edit a single field (identified by fdef) for a specific item_index.
+    Edit a single field (identified by field_def) for a specific item_index.
     For allow_multiple fields this edits one *entry* inside the list,
     identified by entry_index.
     """
@@ -227,10 +228,11 @@ class _FieldEditOverlay(BaseOverlay):
         config_path: str,
         entry_index: int | None = None,
         on_saved: Callable[[str, Any, bool], None] | None = None,
-        ):
+        ) -> None:
 
-        section_def = dict(section_def)
-        self.section_cfg = dict(section_cfg)
+        self.cv_container = parent.cv_container # Controls the current cv information
+        section_def = deepcopy(section_def)
+        self.section_cfg = deepcopy(section_cfg)
         self.item_index = item_index
         self.field_name = field_name
         self.entry_index = entry_index
@@ -238,76 +240,62 @@ class _FieldEditOverlay(BaseOverlay):
         self.on_saved = on_saved
         self.section_name = section_def["name"].strip()
 
-        self.fdef = next(
+        self.field_def = next(
             (f for f in (section_def["fields"])
             if f["name"] == field_name)
             )
-        flabel = self.fdef.get("label") or field_name
+        flabel = self.field_def["label"]
         super().__init__(parent, f"Edit {flabel}")
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
-        items = self.section_cfg.get("items") or []
-        item_payload = dict(items[self.item_index]) if 0 <= self.item_index < len(items) else {}
-        raw = item_payload.get(self.field_name)
+        """
+        Populate the scrollable area in the parent BaseOverlay
+        """
+        items = self.section_cfg["items"]
+        item_payload = dict(items[self.item_index])
+        raw = item_payload[self.field_name]
 
         if self.entry_index is not None:
             # Editing one entry inside an allow_multiple list
-            entries = raw if isinstance(raw, list) else []
-            current_value = entries[self.entry_index] if 0 <= self.entry_index < len(entries) else field_default_value(self.fdef)
+            current_value = raw[self.entry_index]
         else:
-            current_value = raw if raw is not None else field_default_value(self.fdef)
+            current_value = raw
 
         # The single value editor widget
-        self._editor = _build_value_widget(self.fdef, current_value)
+        self._editor = _build_value_widget(self.field_def, current_value)
         scroll_layout.addWidget(self._editor)
 
     def _persist(self, all_cvs: bool) -> None:
-        if not self.section_name:
-            QMessageBox.warning(self, "Error", "Section has no name.")
-            return
-
-        new_value = _read_value_widget(self.fdef, self._editor)
-
-        full_cfg = load_full_config(self.config_path)
-        cv_config = full_cfg.get("cv_config", {})
-        sections = cv_config.get("sections", {})
+        new_value = _read_value_widget(self.field_def, self._editor)
 
         def _patch_section(sec: dict) -> dict:
-            sec = dict(sec)
-            items = list(sec.get("items") or [])
-            while len(items) <= self.item_index:
-                items.append({})
-            item = dict(items[self.item_index])
-
+            sec = deepcopy(sec)
+            item = sec["items"][self.item_index]
             if self.entry_index is not None:
-                # Patch one entry inside the list
-                entries = list(item.get(self.field_name) or [])
-                while len(entries) <= self.entry_index:
-                    entries.append(field_default_value(self.fdef))
-                entries[self.entry_index] = new_value
-                item[self.field_name] = entries
+                item[self.field_name][self.entry_index] = new_value
             else:
                 item[self.field_name] = new_value
-
-            items[self.item_index] = item
-            sec["items"] = items
             return sec
 
         if all_cvs:
-            for key in list(sections.keys()):
-                if key == self.section_name:
-                    sections[key] = _patch_section(sections[key])
-        else:
+            full_cfg = load_full_config(self.config_path)
+            cv_config = full_cfg["cv_config"]
+            sections = cv_config["sections"]
+
             sections[self.section_name] = _patch_section(
-                sections.get(self.section_name, {})
-            )
+                sections[self.section_name]
+                )
 
-        cv_config["sections"] = sections
-        full_cfg["cv_config"] = cv_config
-        save_full_config(self.config_path, full_cfg)
+            cv_config["sections"] = sections
+            full_cfg["cv_config"] = cv_config
+            save_full_config(self.config_path, full_cfg)
+        
+        current_cv_cfg = self.cv_container.get_current_cv()
+        current_sections = current_cv_cfg["sections"]
+        current_sections[self.section_name] = _patch_section(current_sections[self.section_name])
+        self.cv_container.update_current_cv(current_cv_cfg)
 
-        if self.on_saved:
-            self.on_saved(self.section_name, new_value, all_cvs)
+        self.on_saved(self.section_name, new_value, all_cvs)
 
         self.close()
 
@@ -317,10 +305,6 @@ class _FieldEditOverlay(BaseOverlay):
         if p and hasattr(p, "_field_overlay") and p._field_overlay is self:
             p._field_overlay = None
 
-
-# ---------------------------------------------------------------------------
-# _AddEntryOverlay  — append one entry to an allow_multiple field
-# ---------------------------------------------------------------------------
 
 class _AddEntryOverlay(BaseOverlay):
     """
@@ -336,63 +320,60 @@ class _AddEntryOverlay(BaseOverlay):
         field_name: str,
         config_path: str,
         on_saved: Callable[[str, Any, bool], None] | None = None,
-        ):
-        self.section_def  = dict(section_def or {})
-        self.section_cfg  = dict(section_cfg or {})
+        ) -> None:
+
+        self.cv_container = parent.cv_container # Controls the current cv information
+        section_def = deepcopy(section_def)
+        self.section_cfg = deepcopy(section_cfg)
         self.item_index   = item_index
         self.field_name   = field_name
         self.config_path  = config_path
         self.on_saved     = on_saved
-        self.section_name = (self.section_def.get("name") or "").strip()
+        self.section_name = section_def["name"].strip()
 
-        self.fdef = next(
-            (f for f in (section_def.get("fields") or [])
-             if isinstance(f, dict) and f.get("name") == field_name),
-            {}
-        )
-        flabel = self.fdef.get("label") or field_name
+        self.field_def = next(
+            (f for f in (section_def["fields"])
+            if f["name"] == field_name)
+            )
+        flabel = self.field_def["label"]
         super().__init__(parent, f"Add {flabel}")
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
-        self._editor = _build_value_widget(self.fdef, field_default_value(self.fdef))
+        """
+        Populate the scrollable area in the parent BaseOverlay
+        """
+        self._editor = _build_value_widget(
+            self.field_def, 
+            field_default_value(self.fdef)
+            )
         scroll_layout.addWidget(self._editor)
 
     def _persist(self, all_cvs: bool) -> None:
-        if not self.section_name:
-            QMessageBox.warning(self, "Error", "Section has no name.")
-            return
-
-        new_value = _read_value_widget(self.fdef, self._editor)
-
-        full_cfg  = load_full_config(self.config_path)
-        cv_config = full_cfg.get("cv_config", {})
-        sections  = cv_config.get("sections", {})
+        new_value = _read_value_widget(self.field_def, self._editor)
 
         def _patch_section(sec: dict) -> dict:
-            sec   = dict(sec)
-            items = list(sec.get("items") or [])
-            while len(items) <= self.item_index:
-                items.append({})
-            item    = dict(items[self.item_index])
-            entries = list(item.get(self.field_name) or [])
-            entries.append(new_value)
-            item[self.field_name] = entries
-            items[self.item_index] = item
-            sec["items"] = items
+            sec = deepcopy(sec)
+            item = sec["items"][self.item_index]
+            item[self.field_name].append(new_value)
             return sec
 
         if all_cvs:
-            for key in list(sections.keys()):
-                if key == self.section_name:
-                    sections[key] = _patch_section(sections[key])
-        else:
-            sections[self.section_name] = _patch_section(
-                sections.get(self.section_name, {})
-            )
+            full_cfg = load_full_config(self.config_path)
+            cv_config = full_cfg["cv_config"]
+            sections = cv_config["sections"]
 
-        cv_config["sections"] = sections
-        full_cfg["cv_config"] = cv_config
-        save_full_config(self.config_path, full_cfg)
+            sections[self.section_name] = _patch_section(
+                sections[self.section_name]
+                )
+
+            cv_config["sections"] = sections
+            full_cfg["cv_config"] = cv_config
+            save_full_config(self.config_path, full_cfg)
+
+        current_cv_cfg = self.cv_container.get_current_cv()
+        current_sections = current_cv_cfg["sections"]
+        current_sections[self.section_name] = _patch_section(current_sections[self.section_name])
+        self.cv_container.update_current_cv(current_cv_cfg)
 
         if self.on_saved:
             self.on_saved(self.section_name, new_value, all_cvs)
@@ -406,10 +387,6 @@ class _AddEntryOverlay(BaseOverlay):
             p._add_entry_overlay = None
 
 
-# ---------------------------------------------------------------------------
-# _AddItemOverlay  — add a brand-new item (all fields at once)
-# ---------------------------------------------------------------------------
-
 class _AddItemOverlay(BaseOverlay):
     """Adds a complete new item to the section."""
 
@@ -420,24 +397,31 @@ class _AddItemOverlay(BaseOverlay):
         section_cfg: dict[str, Any],
         config_path: str,
         on_saved: Callable[[str, dict[str, Any], bool], None] | None = None,
-    ):
-        self.section_def  = dict(section_def or {})
-        self.section_cfg  = dict(section_cfg or {})
-        self.config_path  = config_path
-        self.on_saved     = on_saved
-        self.section_name = (self.section_def.get("name") or "").strip()
-        self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
+        ) -> None:
 
-        singular = (self.section_def.get("item_label") or {}).get("singular") or "Item"
+        self.cv_container = parent.cv_container # Controls the current cv information
+        self.section_def = deepcopy(section_def)
+        self.section_cfg = deepcopy(section_cfg)
+        self.config_path = config_path
+        self.on_saved = on_saved
+        self.section_name = self.section_def["name"].strip()
+        self.allow_multiple = bool(
+            self.section_def.get("allow_multiple", False)
+            )
+
+        singular = self.section_def["item_label"]["singular"]
         super().__init__(parent, f"Add {singular}")
 
     def _build_form(self, scroll_layout: QVBoxLayout) -> None:
+        """
+        Populate the scrollable area in the parent BaseOverlay
+        """
         self._item_editor = _ItemEditor(
             section_fields=self._fields_def(),
             payload=self._make_default_item_payload(),
             allow_multiple=self.allow_multiple,
             on_remove=lambda: None,
-        )
+            )
         scroll_layout.addWidget(self._item_editor)
 
     def _fields_def(self) -> list[dict[str, Any]]:
@@ -445,41 +429,39 @@ class _AddItemOverlay(BaseOverlay):
         return [f for f in fields if isinstance(f, dict) and f.get("name")]
 
     def _make_default_item_payload(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
+        out = {}
         for fdef in self._fields_def():
-            fname    = fdef["name"]
+            fname = fdef["name"]
             is_multi = bool(fdef.get("allow_multiple", False))
-            base     = field_default_value(fdef)
+            base = field_default_value(fdef)
             out[fname] = [base] if is_multi else base
         return out
 
     def _persist(self, all_cvs: bool) -> None:
-        if not self.section_name:
-            QMessageBox.warning(self, "Error", "Section has no name.")
-            return
-
         new_item  = self._item_editor.to_payload()
-        full_cfg  = load_full_config(self.config_path)
-        cv_config = full_cfg.get("cv_config", {})
-        sections  = cv_config.get("sections", {})
 
-        def _patch(sec: dict) -> dict:
-            sec   = dict(sec)
-            items = list(sec.get("items") or [])
-            items.append(new_item)
-            sec["items"] = items
+        def _patch_section(sec: dict) -> dict:
+            sec = deepcopy(sec)
+            sec["items"].append(new_item)
             return sec
 
         if all_cvs:
-            for key in list(sections.keys()):
-                if key == self.section_name:
-                    sections[key] = _patch(sections[key])
-        else:
-            sections[self.section_name] = _patch(sections.get(self.section_name, {}))
+            full_cfg = load_full_config(self.config_path)
+            cv_config = full_cfg["cv_config"]
+            sections = cv_config["sections"]
 
-        cv_config["sections"] = sections
-        full_cfg["cv_config"] = cv_config
-        save_full_config(self.config_path, full_cfg)
+            sections[self.section_name] = _patch_section(
+                sections[self.section_name]
+                )
+        
+            cv_config["sections"] = sections
+            full_cfg["cv_config"] = cv_config
+            save_full_config(self.config_path, full_cfg)
+
+        current_cv_cfg = self.cv_container.get_current_cv()
+        current_sections = current_cv_cfg["sections"]
+        current_sections[self.section_name] = _patch_section(current_sections[self.section_name])
+        self.cv_container.update_current_cv(current_cv_cfg)
 
         if self.on_saved:
             self.on_saved(self.section_name, new_item, all_cvs)
@@ -493,12 +475,8 @@ class _AddItemOverlay(BaseOverlay):
             p._add_overlay = None
 
 
-# ---------------------------------------------------------------------------
-# Read-only value renderer
-# ---------------------------------------------------------------------------
-
-def _render_value_readonly(fdef: dict[str, Any], value: Any) -> QWidget:
-    ftype = fdef.get("type", "string")
+def _render_value_readonly(field_def: dict[str, Any], value: Any) -> QWidget:
+    ftype = field_def["type"]
 
     if ftype == "year_month":
         if isinstance(value, dict):
@@ -512,19 +490,19 @@ def _render_value_readonly(fdef: dict[str, Any], value: Any) -> QWidget:
         return lbl
 
     if ftype == "object":
-        gb   = QGroupBox(fdef.get("label") or "Details")
+        gb = QGroupBox(field_def["label"])
         gb.setObjectName("readonlyObjectGroup")
         vlay = QVBoxLayout(gb)
         vlay.setContentsMargins(12, 10, 12, 10)
         vlay.setSpacing(6)
-        fields   = fdef.get("fields") or []
+        fields = field_def["fields"]
         val_dict = value if isinstance(value, dict) else {}
         for sub in fields:
             if not isinstance(sub, dict) or not sub.get("name"):
                 continue
-            sub_name  = sub["name"]
-            sub_label = sub.get("label") or sub_name
-            sub_val   = val_dict.get(sub_name)
+            sub_name = sub["name"]
+            sub_label = sub.get("label")
+            sub_val = val_dict.get(sub_name)
             row = QHBoxLayout()
             row.addWidget(QLabel(f"<b>{sub_label}:</b>"))
             row.addWidget(_render_value_readonly(sub, sub_val))
@@ -542,22 +520,26 @@ def _render_value_readonly(fdef: dict[str, Any], value: Any) -> QWidget:
     lbl = QLabel(text)
     lbl.setObjectName("readonlyValue")
     lbl.setWordWrap(True)
+    lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     return lbl
 
+# TODO: CONTINUE HERE
 
 # ---------------------------------------------------------------------------
-# _ReadonlyItemView  — shows one item, field by field, each with its own ✎ btn
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
 class _ReadonlyItemView(QFrame):
     """
     Displays one item's fields in read-only form.
 
-    Each *scalar* field has a small ✎ button to its right that opens
+    Each *scalar* field has a small edit button to its right that opens
     _FieldEditOverlay for that field only.
 
     Each *allow_multiple* field shows its entries as a list, each entry
-    with its own ✎ button, plus a ＋ button at the bottom of the list.
+    with its own edit button, plus a + button at the bottom of the list.
     """
 
     def __init__(
@@ -612,23 +594,25 @@ class _ReadonlyItemView(QFrame):
         current_row = 0
         current_col = 0
 
-        for fdef in section_fields:
-            fname = fdef["name"]
-            flabel = fdef.get("label") or fname
-            is_multi = bool(fdef.get("allow_multiple", False))
-            layout_width = str(fdef.get("layout_width", "full"))
+        for field_def in section_fields:
+            fname = field_def["name"]
+            flabel = field_def.get("label") or fname
+            is_multi = bool(field_def.get("allow_multiple", False))
+            show_name = bool(field_def.get("show_name", True))
+            layout_width = str(field_def.get("layout_width", "full"))
             raw_value = payload.get(fname)
 
             if is_multi:
                 # ── allow_multiple field: list of entries ──────────────────
                 field_block = QWidget()
-                block_lay   = QVBoxLayout(field_block)
+                block_lay = QVBoxLayout(field_block)
                 block_lay.setContentsMargins(0, 0, 0, 0)
                 block_lay.setSpacing(4)
 
                 # Label + ＋ add button on the same row
                 lbl_row = QHBoxLayout()
-                lbl_row.addWidget(QLabel(f"<b>{flabel}</b>"))
+                if show_name:
+                    lbl_row.addWidget(QLabel(f"<b>{flabel}</b>"))
                 lbl_row.addStretch()
                 add_entry_btn = QPushButton("＋ Add")
                 add_entry_btn.setObjectName("addEntryBtn")
@@ -646,7 +630,9 @@ class _ReadonlyItemView(QFrame):
                 for ei, entry in enumerate(entries):
                     entry_row = QHBoxLayout()
                     entry_row.setContentsMargins(8, 0, 0, 0)
-                    edit_btn  = QPushButton("✎")
+
+                    edit_btn = QPushButton("")
+                    edit_btn.setIcon(EditIcon())
                     edit_btn.setObjectName("fieldEditBtn")
                     edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     edit_btn.setFixedSize(24, 24)
@@ -655,7 +641,7 @@ class _ReadonlyItemView(QFrame):
                         lambda _checked, fn=fname, idx=ei: on_edit_field(fn, idx)
                     )
                     entry_row.addWidget(edit_btn)
-                    val_lbl = _render_value_readonly(fdef, entry)
+                    val_lbl = _render_value_readonly(field_def, entry)
                     entry_row.addWidget(val_lbl, stretch=1)
                     block_lay.addLayout(entry_row)
 
@@ -667,17 +653,19 @@ class _ReadonlyItemView(QFrame):
                 widget = field_block
 
             else:
-                # ── scalar field: ✎ on the left, then label + value ────────
+                # ── scalar field: edit button on the left, then label + value ────────
                 cell = QWidget()
                 cell_lay = QVBoxLayout(cell)
                 cell_lay.setContentsMargins(0, 0, 0, 0)
                 cell_lay.setSpacing(6)
-                cell_lay.addWidget(QLabel(f"<b>{flabel}</b>"))
+                if show_name:
+                    cell_lay.addWidget(QLabel(f"<b>{flabel}</b>"))
 
                 edit_val = QWidget()
                 edit_val_lay = QHBoxLayout(edit_val)
 
-                edit_btn = QPushButton("✎")
+                edit_btn = QPushButton("")
+                edit_btn.setIcon(EditIcon())
                 edit_btn.setObjectName("fieldEditBtn")
                 edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 edit_btn.setFixedSize(24, 24)
@@ -689,7 +677,7 @@ class _ReadonlyItemView(QFrame):
 
                 edit_val_lay.setContentsMargins(0, 0, 0, 0)
                 edit_val_lay.setSpacing(2)
-                edit_val_lay.addWidget(_render_value_readonly(fdef, raw_value))
+                edit_val_lay.addWidget(_render_value_readonly(field_def, raw_value))
                 cell_lay.addWidget(edit_val, stretch=1)
 
                 widget = cell
@@ -747,7 +735,7 @@ class SectionSelectionPage(QWidget):
     """
     Read-only display page for a single section's saved data.
 
-    • Each field has a ✎ button that opens a single-field edit overlay.
+    • Each field has an edit button that opens a single-field edit overlay.
     • allow_multiple fields also show a + Add button per field.
     • A footer "+ Add <item>" button (only when section allow_multiple=True)
       opens the full new-item overlay (_AddItemOverlay).
@@ -762,18 +750,13 @@ class SectionSelectionPage(QWidget):
     ):
         super().__init__(parent)
 
+        self.cv_container = parent # Controls the current cv information
         self.palette_ref = self.palette()
-        self.cv_container = parent
-        if not isinstance(section_def, dict):
-            raise TypeError(
-                f"SectionSelectionPage: section_def must be a dict, got "
-                f"{type(section_def).__name__!r}: {section_def!r}."
-            )
         self.section_def = dict(section_def)
         self.config_path = config_path
         self.on_item_saved = on_item_saved
 
-        self.section_name = (self.section_def.get("name") or "").strip()
+        self.section_name = self.section_def["name"].strip()
         self.allow_multiple = bool(self.section_def.get("allow_multiple", False))
 
         self._field_overlay: _FieldEditOverlay | None = None
@@ -890,13 +873,12 @@ class SectionSelectionPage(QWidget):
 
     def _load_section_cfg(self) -> dict[str, Any]:
         cv_cfg = self.cv_container.get_current_cv()
-        return cv_cfg.get("sections").get(self.section_name)
+        return cv_cfg["sections"][self.section_name]
 
     def _load_and_render(self) -> None:
         self._render(self._load_section_cfg())
 
     def _render(self, section_cfg: dict[str, Any]) -> None:
-        # Header
         default_title = self.section_def.get("default_title") or self.section_name.title()
         title = section_cfg.get("title_override") or default_title
         self._title_label.setText(title)
@@ -960,7 +942,7 @@ class SectionSelectionPage(QWidget):
             config_path=self.config_path,
             entry_index=entry_index,
             on_saved=self._on_saved,
-        )
+            )
         self._field_overlay.show()
         self._field_overlay.raise_()
 
@@ -1027,20 +1009,16 @@ class SectionSelectionPage(QWidget):
         self._load_and_render()
 
 
-# ---------------------------------------------------------------------------
-# Everything below is unchanged from the original file
-# ---------------------------------------------------------------------------
-
 class CVListPage(QWidget):
 
     create_cv_clicked = pyqtSignal()
 
     def __init__(
         self,
-        db: "JobDatabase",
+        db: JobDatabase,
         paths: dict[str, Path],
         parent: QWidget | None = None,
-    ):
+        ) -> None:
         super().__init__(parent)
         self.db = db
         self.paths = paths
@@ -1054,7 +1032,9 @@ class CVListPage(QWidget):
 
         top_bar = QHBoxLayout()
         title_label = QLabel("Curriculum Vitae")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        title_label.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+            )
         title_label.setStyleSheet("font-size: 18px; font-weight: 600;")
         add_button = QPushButton("Create new CV")
         add_button.setFixedHeight(32)
@@ -1067,10 +1047,17 @@ class CVListPage(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels([
-            "Title", "Created", "Updated", "Newest Version ID", "Group ID", "Actions",
-        ])
+            "Title",
+            "Created",
+            "Updated",
+            "Newest Version ID",
+            "Group ID",
+            "Actions",
+            ])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+            )
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
@@ -1101,7 +1088,7 @@ class CVListPage(QWidget):
             ("document-open", "View CV"),
             ("document-edit", "Edit CV"),
             ("edit-delete", "Delete CV"),
-        ]:
+            ]:
             btn = QToolButton()
             btn.setIcon(QIcon.fromTheme(icon_name))
             btn.setToolTip(tip)
@@ -1127,6 +1114,7 @@ class CVListPage(QWidget):
 
 
 class CVTopNavigator(QWidget):
+    
     section_selected = pyqtSignal(str)
     back_clicked = pyqtSignal()
 
@@ -1541,10 +1529,8 @@ class CVEditorContainer(QWidget):
                 widget = item.widget()
                 if widget is not None:
                     widget.deleteLater()
-            # Delete the layout itself
             QWidget().setLayout(existing_layout)
 
-        # Reset state
         self.section_pages = {}
         self.section_defs = []
         self.current_cv = {}
@@ -1558,10 +1544,17 @@ class CVEditorContainer(QWidget):
             cv_cfg = load_cv_config(self.paths.get("config"))
             order = cv_cfg.get("section_order")
             defs_by_name = {d["name"]: d for d in all_defs}
-            self.section_defs = [defs_by_name[n] for n in order if n in defs_by_name]
+            self.section_defs = [
+                defs_by_name[n] for n in order if n in defs_by_name
+                ]
             self.current_cv = cv_cfg.copy()
-            self.section_defs = [sec for sec in self.section_defs if self.current_cv['sections'][sec['name']]['enabled']]
-            self._section_defs_by_name = {d["name"]: d for d in self.section_defs}
+            self.section_defs = [
+                sec for sec in self.section_defs if 
+                self.current_cv['sections'][sec['name']]['enabled']
+                ]
+            self._section_defs_by_name = {
+                d["name"]: d for d in self.section_defs
+                }
 
     def _build_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -1578,26 +1571,33 @@ class CVEditorContainer(QWidget):
 
         self.section_pages: dict[str, QWidget] = {}
 
-        self._create_target_app_page("target_application", "Target Application")
+        self._create_target_app_page(
+            "target_application", 
+            "Target Application"
+            )
         for section_def in self.section_defs:
             self._create_section_page(section_def.get("name", ""))
-        self._create_placeholder_page("reorder_sections", "Reorder Sections")
+        self._create_placeholder_page(
+            "reorder_sections", 
+            "Reorder Sections"
+            )
         self._create_placeholder_page("preview", "Preview CV")
 
         self._show_section("target_application")
 
-    def _create_target_app_page(self, section_name: str, section_label: str) -> None:
-        page = TargetApplicationPage(self.db, section_name, section_label, self)
+    def _create_target_app_page(
+        self, 
+        section_name: str, 
+        section_label: str
+        ) -> None:
+        page = TargetApplicationPage(
+            self.db, section_name, section_label, self
+            )
         self.content_stack.addWidget(page)
         self.section_pages[section_name] = page
 
     def _create_section_page(self, section_name: str) -> None:
         section_def = self._section_defs_by_name.get(section_name)
-        if section_def is None:
-            raise ValueError(
-                f"_create_section_page: no section_def found for {section_name!r}. "
-                f"Ensure _load_sections() is called before _create_section_page()."
-                )
         page = SectionSelectionPage(
             section_def=section_def,
             config_path=str(self.paths.get("config")),
@@ -1606,14 +1606,21 @@ class CVEditorContainer(QWidget):
         self.content_stack.addWidget(page)
         self.section_pages[section_name] = page
 
-    def _create_placeholder_page(self, section_name: str, section_label: str) -> None:
+    def _create_placeholder_page(
+        self, 
+        section_name: str, 
+        section_label: str
+        ) -> None:
         page = SectionPlaceholderPage(section_name, section_label, self)
         self.content_stack.addWidget(page)
         self.section_pages[section_name] = page
 
     def _show_section(self, section_name: str) -> None:
+        # Check that the prerequisites for the section are met.
         if section_name in self.section_pages:
-            self.content_stack.setCurrentWidget(self.section_pages[section_name])
+            self.content_stack.setCurrentWidget(
+                self.section_pages[section_name]
+                )
             self.top_nav.set_active_section(section_name)
 
     def set_cv_information(self, cv: Path | None = None) -> None:
@@ -1624,7 +1631,7 @@ class CVEditorContainer(QWidget):
         return
 
     def get_current_cv(self) -> dict:
-        return self.current_cv
+        return deepcopy(self.current_cv)
 
     def update_current_cv(self, updated_cv: dict) -> None:
         self.current_cv = updated_cv
@@ -1637,10 +1644,10 @@ class CVBuilderPage(QWidget):
         db: JobDatabase,
         paths: dict[str, Path],
         parent: QWidget | None = None,
-        ):
+        ) -> None:
         super().__init__(parent)
-        self.db      = db
-        self.paths   = paths
+        self.db = db
+        self.paths = paths
 
         self._build_ui()
         
@@ -1704,7 +1711,7 @@ class CVBuilderPage(QWidget):
             QComboBox {{ border: 1px solid {border_color.name()}; border-radius: 6px; padding: 6px; }}
             QPushButton {{
                 background-color: {button_bg.name()}; color: {text_color.name()};
-                border: 1px solid {border_color.name()} border-radius: 6px;
+                border: 1px solid {border_color.name()}; border-radius: 6px;
                 padding: 8px 16px; font-size: 13px;
             }}
             QPushButton:hover {{ background-color: {hover_bg.name()}; }}
