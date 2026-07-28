@@ -211,9 +211,9 @@ class MainWindow(QMainWindow):
             )
 
         self.btn_applications = self._make_nav_button("Applications")
-        self.btn_profile = self._make_nav_button("CV Configuration")
-        self.btn_builder = self._make_nav_button("CV Builder")
-        self.btn_support_project = self._make_nav_button("Support")
+        # self.btn_profile = self._make_nav_button("CV Configuration")
+        # self.btn_builder = self._make_nav_button("CV Builder")
+        self.btn_support_project = self._make_nav_button("Support Us")
 
         nav_header_layout = QHBoxLayout()
         nav_header_layout.setContentsMargins(0, 0, 0, 0)
@@ -226,8 +226,8 @@ class MainWindow(QMainWindow):
         nav_layout.addLayout(nav_header_layout)
         nav_layout.addSpacing(12)
         nav_layout.addWidget(self.btn_applications)
-        nav_layout.addWidget(self.btn_profile)
-        nav_layout.addWidget(self.btn_builder)
+        # nav_layout.addWidget(self.btn_profile)
+        # nav_layout.addWidget(self.btn_builder)
         nav_layout.addWidget(self.btn_support_project)
         nav_layout.addStretch()
 
@@ -253,12 +253,12 @@ class MainWindow(QMainWindow):
         self.btn_applications.clicked.connect(
             lambda: self._switch_page(self.applications_page, self.btn_applications)
         )
-        self.btn_profile.clicked.connect(
-            lambda: self._switch_page(self.profile_page, self.btn_profile)
-        )
-        self.btn_builder.clicked.connect(
-            lambda: self._switch_page(self.builder_page, self.btn_builder)
-        )
+        # self.btn_profile.clicked.connect(
+        #     lambda: self._switch_page(self.profile_page, self.btn_profile)
+        # )
+        # self.btn_builder.clicked.connect(
+        #     lambda: self._switch_page(self.builder_page, self.btn_builder)
+        # )
         self.btn_support_project.clicked.connect(
             lambda: self._switch_page(self.support_page, self.btn_support_project)
         )
@@ -320,8 +320,8 @@ class MainWindow(QMainWindow):
     def _switch_page(self, page: QWidget, clicked_button: QPushButton) -> None:
         for btn in (
             self.btn_applications, 
-            self.btn_profile, 
-            self.btn_builder, 
+            # self.btn_profile, 
+            # self.btn_builder, 
             self.btn_support_project
             ):
             btn.setChecked(btn is clicked_button)
