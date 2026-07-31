@@ -345,6 +345,7 @@ class MainWindow(QMainWindow):
 
 def run_app() -> None:
     app = QApplication([])
+    app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
     app.setWindowIcon(LogoIcon())
     
     user_paths = get_app_paths_for_user("JobVaultLibre", user_id="Default")

@@ -41,7 +41,7 @@ from myapp.widgets import NoScrollComboBox
 # TODO: Do a fail safe if the yml files are wrong.
 # TODO: Decide whether "Profile" is an appropriate name
 
-STATUS_COLORS = {
+STATUS_COLOURS = {
     "Enabled": "#10B981",
     "Hidden": "#777777",
 }
@@ -1176,7 +1176,7 @@ class SectionCard(QWidget):
         else:
             status_text = "Hidden"
 
-        status_badge_color = STATUS_COLORS.get(status_text, "#6B7280")
+        status_badge_color = STATUS_COLOURS.get(status_text, "#6B7280")
 
         # --- Header row (title + status) ---
         header_row = QHBoxLayout()
