@@ -104,6 +104,59 @@ class CloseIcon(AppIconSVG):
             "close.svg", color_role=color_role, color_name=color_name
             )
 
+class DotsVerticalIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "dots-vertical.svg", color_role=color_role, color_name=color_name
+            )
+
+class PencilPlusIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "pencil-plus.svg", color_role=color_role, color_name=color_name
+            )
+
+class TrashIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "trash.svg", color_role=color_role, color_name=color_name
+            )
+
+class DeselectIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "square.svg", color_role=color_role, color_name=color_name
+            )
+
+class SelectIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "square-check.svg", color_role=color_role, color_name=color_name
+            )
+
+class AlertIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None) -> None:
+        super().__init__(
+            "alert-circle.svg", color_role=color_role, color_name=color_name
+            )
 
 class GithubSponsorIcon(AppIconSVG):
     def __init__(self):

@@ -22,8 +22,9 @@ from PyQt6.QtCore import (
     QEvent, 
     QDate,
     QObject,
+    QTimer,
     )
-from PyQt6.QtGui import QPalette, QShowEvent
+from PyQt6.QtGui import QPalette, QShowEvent, QFontMetrics
 
 from myapp.database import JobDatabase
 from myapp.widgets import (
@@ -36,10 +37,16 @@ from myapp.icons import (
     EditIcon, 
     FilterIcon,
     CloseIcon,
+    DotsVerticalIcon,
+    PencilPlusIcon,
+    TrashIcon,
+    DeselectIcon,
+    SelectIcon,
+    AlertIcon,
     )
 from myapp.constants import (
     STATUS_OPTIONS, 
-    STATUS_COLORS, 
+    STATUS_COLOURS, 
     JOB_TYPE_OPTIONS, 
     WORK_ARRANGEMENT_OPTIONS,
     )
@@ -64,16 +71,26 @@ class JobApplicationCard(QWidget):
         self,
         job: JobDict,
         on_view: Callable[[JobDict], None],
+        on_select_changed: Callable[[int, bool], None],
         ) -> None:
+
         super().__init__()
         self.on_view = on_view
         self.job = job
+        self.on_select_changed = on_select_changed
+        self.selected = False
 
         self.setMinimumWidth(400)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred,
             QSizePolicy.Policy.Fixed
             )
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._click_timer = QTimer(self)
+        self._click_timer.setSingleShot(True)
+        self._click_timer.setInterval(300)
+        self._click_timer.timeout.connect(self._handle_single_click)
 
         self._build_ui()
 
@@ -104,7 +121,7 @@ class JobApplicationCard(QWidget):
         self.status_badge.setObjectName("statusBadge")
         self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_badge.setContentsMargins(8, 2, 8, 2)
-        status_badge_color = STATUS_COLORS.get(self.job["status"], "#6B7280")
+        status_badge_color = STATUS_COLOURS.get(self.job["status"], "#6B7280")
 
         self.status_badge.setStyleSheet(f"""
             QLabel#statusBadge {{
@@ -152,8 +169,10 @@ class JobApplicationCard(QWidget):
         bottom_row.addWidget(self.location_label)
         bottom_row.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
 
-        self.details_button = QPushButton("More details")
+        self.details_button = QPushButton()
+        self.details_button.setIcon(DotsVerticalIcon())
         self.details_button.setObjectName("detailsButton")
+        self.details_button.setFixedSize(32, 32)
         self.details_button.clicked.connect(self._handle_view_clicked)
         bottom_row.addWidget(self.details_button)
 
@@ -161,7 +180,34 @@ class JobApplicationCard(QWidget):
 
     def _handle_view_clicked(self) -> None:
         self.on_view(self.job)
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._click_timer.start()  # defer the "select" action
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+            
+    def _handle_single_click(self):
+        self.set_selected(not self.selected)
+        self.on_select_changed(int(self.job["id"]), self.selected)
 
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._click_timer.stop()
+            self.on_view(self.job)
+            event.accept()
+        else:
+            super().mouseDoubleClickEvent(event)
+
+    def set_selected(self, selected: bool):
+        self.selected = selected
+        self.frame.setProperty("selected", selected)
+
+        # Force Qt to recalculate styles
+        self.frame.style().unpolish(self.frame)
+        self.frame.style().polish(self.frame)
+        self.frame.update()
 
 class BaseOverlay(QWidget):
     """
@@ -1097,6 +1143,158 @@ class EditApplicationOverlay(BaseOverlay):
 
         self.close()
 
+class BulkDeleteOverlay(QWidget):
+    def __init__(
+        self,
+        parent: QWidget,
+        jobs: list[JobDict],
+        on_delete: Callable[[list[JobDict]], None],
+    ):
+        super().__init__(parent)
+
+        self.jobs = jobs
+        self.on_delete = on_delete
+
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("Overlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        self._build_ui()
+
+    def _build_ui(self):
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(60, 40, 60, 80)
+        root_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.dialog = QFrame()
+        self.dialog.setObjectName("dialogFrame")
+
+        # Fixed vertical size
+        self.dialog.setFixedHeight(420)
+
+        root_layout.addWidget(self.dialog)
+
+        dialog_layout = QVBoxLayout(self.dialog)
+        dialog_layout.setContentsMargins(24, 20, 24, 20)
+        dialog_layout.setSpacing(12)
+
+        # Title row
+        title_row = QHBoxLayout()
+        count = len(self.jobs)
+        title = QLabel(
+            f"Delete {count} application{'s' if count != 1 else ''}?"
+        )
+        title.setObjectName("dialogTitle")
+        warning_text = QLabel("This action cannot be undone.")
+        warning_text.setObjectName("warningLabel")
+
+        alert_icon_label = QLabel()
+        alert_icon_label.setPixmap(AlertIcon(color_name="#DC6363").pixmap(16, 16))
+        alert_icon_label.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
+            )
+
+        close = QPushButton()
+        close.setIcon(CloseIcon())
+        close.setObjectName("closeBtn")
+        close.setFixedSize(32, 32)
+        close.clicked.connect(self.close)
+
+        title_row.addWidget(title)
+        title_row.addWidget(alert_icon_label)
+        title_row.addWidget(warning_text)
+        title_row.addStretch()
+        title_row.addWidget(close)
+
+        dialog_layout.addLayout(title_row)
+        
+        # Job list
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
+        content = QWidget()
+        content_layout = QGridLayout(content)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        content_layout.setHorizontalSpacing(16)
+        content_layout.setVerticalSpacing(8)
+
+        row_idx = 0
+        for i, job in enumerate(self.jobs):
+            position = QLabel(job['position'])
+            position.setObjectName("jobPosition")
+
+            company = QLabel(job['company'])
+            company.setObjectName("jobCompany")
+
+            date = QLabel(job['date_applied'] or 'Not applied')
+            date.setObjectName("jobDate")
+
+            status = QLabel(job['status'])
+            status.setObjectName("jobStatus")
+
+            content_layout.addWidget(position, row_idx, 0)
+            content_layout.addWidget(company, row_idx, 2)
+            content_layout.addWidget(date, row_idx, 3)
+            content_layout.addWidget(status, row_idx, 4)
+            row_idx += 1
+
+            if i < len(self.jobs) - 1:
+                row_idx += 1
+
+        content_layout.setColumnStretch(0, 1)
+        content_layout.setColumnStretch(1, 1)
+        content_layout.setColumnStretch(2, 1)
+        content_layout.setColumnStretch(3, 1)
+        content_layout.setRowStretch(row_idx, 1)
+
+        scroll.setWidget(content)
+
+        dialog_layout.addWidget(scroll)
+
+        # Buttons
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+
+        cancel = QPushButton("Cancel")
+        cancel.setObjectName("cancelBtn")
+        cancel.clicked.connect(self.close)
+
+        delete = QPushButton(
+            f"Delete {len(self.jobs)} application{'s' if count != 1 else ''}"
+        )
+        delete.setObjectName("removeBtn")
+        delete.clicked.connect(self._delete)
+
+        buttons.addWidget(cancel)
+        buttons.addSpacing(8)
+        buttons.addWidget(delete)
+
+        dialog_layout.addLayout(buttons)
+
+    def _delete(self):
+        self.on_delete(self.jobs)
+        self.close()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fit_to_parent()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_parent()
+
+    def _fit_to_parent(self):
+        parent = self.parentWidget()
+
+        if parent:
+            self.setGeometry(parent.rect())
+            width = int(parent.width() * 0.55)
+            self.dialog.setFixedWidth(width)
+
 class TrackerPage(QWidget):
 
     ROWS_COMPLETER = 3
@@ -1109,6 +1307,7 @@ class TrackerPage(QWidget):
         db: JobDatabase, 
         parent: QWidget | None = None
         ) -> None:
+        
         super().__init__(parent)
         self.db = db
         self.job_applications = []
@@ -1120,6 +1319,10 @@ class TrackerPage(QWidget):
         self._apply_stylesheet()
 
         self.refresh_from_db()
+        
+        self.selected_job_ids = set()
+        self.update_selection_bar()
+        self.parent = parent
 
     def _build_ui(self) -> None:
         """Initializes the layout, creates widgets, and assembles the UI"""
@@ -1178,7 +1381,11 @@ class TrackerPage(QWidget):
                 }
             """)
 
-        self.add_application_button = QPushButton("Add Application")
+        self.add_application_button = QPushButton(" Add Application")
+        self.add_application_button.setIcon(
+            PencilPlusIcon(color_role=QPalette.ColorRole.HighlightedText)
+            )
+        self.add_application_button.setObjectName("addApplicationButton")
         self.add_application_button.clicked.connect(self.add_application)
         self.add_application_button.setCursor(
             Qt.CursorShape.PointingHandCursor
@@ -1188,8 +1395,8 @@ class TrackerPage(QWidget):
             )
         self.add_application_button.setMinimumHeight(34)
 
-        search_row.addWidget(self.searchbar, stretch=1)
         search_row.addWidget(self.add_application_button)
+        search_row.addWidget(self.searchbar, stretch=1)
 
         main_layout.addLayout(search_row)
 
@@ -1217,6 +1424,9 @@ class TrackerPage(QWidget):
         self.status_filter.currentTextChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
             )
+        self.status_filter.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         job_type_label = QLabel("Job type")
         job_type_label.setObjectName("filterLabel")
@@ -1228,6 +1438,9 @@ class TrackerPage(QWidget):
         self.job_type_filter.currentTextChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
             )
+        self.job_type_filter.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         arrangement_label = QLabel("Arrangement")
         arrangement_label.setObjectName("filterLabel")
@@ -1238,6 +1451,9 @@ class TrackerPage(QWidget):
         self.arrangement_filter.setMinimumHeight(30)
         self.arrangement_filter.currentTextChanged.connect(
             lambda _: self.update_jobs_displayed(self.searchbar.text())
+            )
+        self.arrangement_filter.setCursor(
+            Qt.CursorShape.PointingHandCursor
             )
 
         date_label = QLabel("Applied")
@@ -1286,29 +1502,89 @@ class TrackerPage(QWidget):
         self.sort_combo.currentTextChanged.connect(
             lambda _: self._sort_cards()
             )
+        self.sort_combo.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         filter_row.addWidget(filter_icon_label)
         filter_row.addWidget(filter_by_label)
         filter_row.addWidget(status_label)
         filter_row.addWidget(self.status_filter)
+        filter_row.addSpacing(8)
         filter_row.addWidget(self._make_separator())
+        filter_row.addSpacing(8)
         filter_row.addWidget(job_type_label)
         filter_row.addWidget(self.job_type_filter)
+        filter_row.addSpacing(8)
         filter_row.addWidget(self._make_separator())
+        filter_row.addSpacing(8)
         filter_row.addWidget(arrangement_label)
         filter_row.addWidget(self.arrangement_filter)
+        filter_row.addSpacing(8)
         filter_row.addWidget(self._make_separator())
+        filter_row.addSpacing(8)
         filter_row.addWidget(date_label)
         filter_row.addWidget(date_from_label)
         filter_row.addWidget(self.date_from_filter)
         filter_row.addWidget(date_to_label)
         filter_row.addWidget(self.date_to_filter)
         filter_row.addStretch(1)
-        filter_row.addWidget(self._make_separator())
         filter_row.addWidget(sort_label)
         filter_row.addWidget(self.sort_combo)
 
         main_layout.addLayout(filter_row)
+
+        # ── Row 3: Selection bar ─────────────────────────────────────────────
+        selection_row = QHBoxLayout()
+
+        self.selected_label = QLabel("0 jobs selected")
+        fm = QFontMetrics(self.selected_label.font())
+        width = fm.horizontalAdvance("9999 jobs selected")
+        self.selected_label.setMinimumWidth(width)
+
+        self.select_all_button = QPushButton(" Select all visible")
+        self.select_all_button.setIcon(
+            SelectIcon()
+            )
+        self.select_all_button.setObjectName("SelectionButton")
+        self.select_all_button.clicked.connect(
+            self.select_all_visible
+            )
+        self.select_all_button.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
+
+        self.deselect_button = QPushButton(" Deselect")
+        self.deselect_button.setIcon(
+            DeselectIcon()
+            )
+        self.deselect_button.setObjectName("SelectionButton")
+        self.deselect_button.clicked.connect(
+            self.deselect_all
+            )
+        self.deselect_button.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
+
+        self.delete_selected_button = QPushButton(" Delete")
+        self.delete_selected_button.setIcon(
+            TrashIcon(color_name="#DC6363")
+            )
+        self.delete_selected_button.setObjectName("SelectionButton")
+        self.delete_selected_button.clicked.connect(
+            self.delete_selected
+            )
+        self.delete_selected_button.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
+
+        selection_row.addWidget(self.selected_label)
+        selection_row.addStretch()
+        selection_row.addWidget(self.select_all_button)
+        selection_row.addWidget(self.deselect_button)
+        selection_row.addWidget(self.delete_selected_button)
+
+        main_layout.addLayout(selection_row)
 
         # ── Body (scrollable) ────────────────────────────────────────────────
         body_container = QWidget()
@@ -1330,11 +1606,8 @@ class TrackerPage(QWidget):
     def _make_separator() -> QFrame:
         """Return a thin vertical separator line for the filter bar."""
         sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.VLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
         sep.setObjectName("filterSeparator")
-        sep.setFixedWidth(1)
-        sep.setMinimumHeight(20)
+        sep.setFixedSize(1, 30)
         return sep
 
     # TODO: Check that everything here actually make things better and fits all
@@ -1348,48 +1621,107 @@ class TrackerPage(QWidget):
         highlight = self.palette().color(QPalette.ColorRole.Highlight)
         
         dialog_bg = window_bg.lighter(110)
-        border_color = window_bg.lighter(140)
-        hover_bg = button_bg.lighter(120)
+        # Border color doesn't work in light themes
+        border_color = window_bg.lighter(200)
+        hover_bg = "rgba(128, 128, 128, 30)"
         
         stylesheet = f"""
             /* ==================== SEARCH BAR ==================== */
             QLineEdit#searchBar {{
-                border: 1px solid palette(window-text);
+                border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
-                font-size: 12px;
+                font-size: 14px;
+                }}
+            QLineEdit#searchBar:hover {{
+                background-color: {hover_bg};
                 }}
             QLineEdit#searchBar:focus {{
                 border: 1px solid palette(highlight);
                 }}
+            QPushButton#addApplicationButton {{
+                background-color: palette(highlight);
+                border: none;
+                color: palette(highlighted-text);
+                font-size: 14px;
+                padding: 5px 6px;
+                border-radius: 6px;
+            }}
+            QPushButton#addApplicationButton:hover {{
+                background-color: {highlight.darker(90).name()};
+            }}
             
             /* ==================== FILTER BAR ==================== */
             QLabel#filterByLabel {{
-                font-size: 12px;
-                font-weight: 600;
+                font-size: 14px;
+                font-weight: 550;
                 color: palette(window-text);
                 }}
             QLabel#filterLabel {{
-                font-size: 11px;
-                color: {text_color.darker(130).name()};
+                font-size: 14px;
+                color: palette(window-text);
                 }}
             QComboBox#filterCombo {{
-                border: 1px solid palette(mid);
+                border: 1px solid {border_color.name()};
                 border-radius: 6px;
-                padding: 3px 6px;
-                font-size: 11px;
+                padding: 0px 8px;
+                font-size: 14px;
+                }}
+            QComboBox#filterCombo:hover {{
+                background-color: {hover_bg};
+                }}
+            QComboBox#filterCombo::drop-down {{
+                width: 0;
+                }}
+            QComboBox#filterCombo QAbstractItemView {{
+                border: 1px solid palette(highlight);
+                border-radius: 6px;
+                selection-background-color: {hover_bg};
                 }}
             QDateEdit#filterDate {{
-                font-size: 11px;
+                border: 1px solid {border_color.name()};
+                font-size: 14px;
+                }}
+            QDateEdit#filterDate:hover {{
+                background-color: {hover_bg};
                 }}
             QFrame#filterSeparator {{
-                color: palette(mid);
+                background: {border_color.name()};
                 }}
+
+            /* ==================== SELECT BAR ==================== */
+            QPushButton#SelectionButton {{
+                border: none;
+                font-size: 14px;
+                padding: 8px 18px;
+                border-radius: 6px;
+            }}
+            QPushButton#SelectionButton:hover {{
+                background-color: {hover_bg};
+            }}
+
+            /* ==================== DELETE OVERLAY ==================== */
+
+            QLabel#warningLabel {{
+                color: #DC6363;
+            }}
 
             /* ==================== JOB CARDS ==================== */
             QFrame#cardFrame {{
-                border: 1px solid #cccccc;
+                border: 1px solid {border_color.name()};
                 border-radius: 6px;
+            }}
+            QFrame#cardFrame:hover {{
+                border: 1px solid {border_color.lighter(150).name()};
+                background-color: {hover_bg};
+            }}
+            QFrame#cardFrame[selected="true"] {{
+                border: 1px solid palette(highlight);
+                border-radius: 6px;
+            }}
+            QFrame#cardFrame[selected="true"]:hover {{
+                border: 1px solid palette(highlight);
+                background-color: {hover_bg};
             }}
             QLabel#companyLabel {{
                 font-weight: 600;
@@ -1403,8 +1735,14 @@ class TrackerPage(QWidget):
                 color: #666666;
             }}
             QPushButton#detailsButton {{
-                font-size: 11px;
-                padding: 4px 10px;
+                background-color: transparent;
+                border: none;
+                font-size: 18px;
+                padding: 4px 8px;
+            }}
+            QPushButton#detailsButton:hover {{
+                background-color: {hover_bg};
+                border-radius: 6px;
             }}
             
             /* ==================== OVERLAY BACKGROUNDS ==================== */
@@ -1479,7 +1817,7 @@ class TrackerPage(QWidget):
                 font-size: 13px;
             }}
             QPushButton#cancelBtn:hover {{
-                background-color: {hover_bg.name()};
+                background-color: {hover_bg};
             }}
             
             QPushButton#saveBtn {{
@@ -1491,7 +1829,7 @@ class TrackerPage(QWidget):
                 font-size: 13px;
             }}
             QPushButton#saveBtn:hover {{
-                background-color: {highlight.darker(110).name()};
+                background-color: {highlight.darker(90).name()};
             }}
             
             QPushButton#removeBtn {{
@@ -1548,7 +1886,7 @@ class TrackerPage(QWidget):
                 min-height: 20px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background-color: {hover_bg.name()};
+                background-color: {hover_bg};
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
@@ -1641,12 +1979,76 @@ class TrackerPage(QWidget):
             w = JobApplicationCard(
                 job,
                 on_view = self.open_view_overlay_for_job,
+                on_select_changed=self.selection_changed,
                 )
             self.job_card_widgets.append(w)
             self.body_layout.insertWidget(
                 self.body_layout.count() - 1, w, alignment=Qt.AlignmentFlag.AlignTop
                 )
         self._sort_cards()
+
+    def update_selection_bar(self):
+        count = len(self.selected_job_ids)
+
+        self.selected_label.setText(
+            f"{count} job{'s' if count != 1 else ''} selected"
+            )
+
+        self.deselect_button.setEnabled(count > 0)
+        self.delete_selected_button.setEnabled(count > 0)
+
+    def select_all_visible(self):
+        for widget in self.job_card_widgets:
+            if widget.isVisible():
+                job_id = int(widget.job["id"])
+                self.selected_job_ids.add(job_id)
+                widget.set_selected(True)
+
+        self.update_selection_bar()
+
+    def deselect_all(self):
+        self.selected_job_ids.clear()
+
+        for widget in self.job_card_widgets:
+            widget.set_selected(False)
+
+        self.update_selection_bar()
+
+    def selection_changed(self, job_id: int, selected: bool):
+        if selected:
+            self.selected_job_ids.add(job_id)
+        else:
+            self.selected_job_ids.discard(job_id)
+
+        self.update_selection_bar()
+
+    def delete_selected(self):
+
+        jobs = [
+            widget.job
+            for widget in self.job_card_widgets
+            if int(widget.job["id"]) in self.selected_job_ids
+            ]
+
+        if not jobs:
+            return
+
+        self._overlay = BulkDeleteOverlay(
+            self,
+            jobs,
+            self.confirm_bulk_delete
+            )
+
+        self._overlay.show()
+        self._overlay.raise_()
+        
+    def confirm_bulk_delete(self, jobs):
+        for job in jobs:
+            self.db.remove_job(int(job["id"]))
+
+        self.selected_job_ids.clear()
+        self.refresh_from_db()
+        self.update_selection_bar()
 
     def clear_cards(self) -> None:
         """Removes job application cards."""

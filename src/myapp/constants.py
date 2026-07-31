@@ -33,9 +33,10 @@ JOB_TYPE_OPTIONS = [
 WORK_ARRANGEMENT_OPTIONS = [
     "On-site", 
     "Hybrid", 
-    "Remote"]
+    "Remote"
+    ]
 
-STATUS_COLORS = {
+STATUS_COLOURS = {
     "Not Applied": "#256D6D",           # Desaturated Teal - informative
     "Applied": "#3B82F6",               # Blue - informative
     "Interview Scheduled": "#F59E0B",   # Amber - attention/upcoming
@@ -43,4 +44,4 @@ STATUS_COLORS = {
     "Offer": "#2b7a2b",                 # Green - success/positive
     "Rejected": "#EF4444",              # Red - negative/closed
     "Withdrawn": "#6B7280",             # Gray - neutral/inactive
-}
+    }

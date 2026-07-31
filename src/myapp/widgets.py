@@ -12,7 +12,7 @@ from PyQt6.QtGui import (
     QTextCharFormat, 
     QPalette,
     )
-from PyQt6.QtCore import QDate, QMimeData
+from PyQt6.QtCore import Qt, QDate, QMimeData
 
 class BaseColourTextEdit(QTextEdit):
 
@@ -67,9 +67,7 @@ class NoScrollDateEdit(QDateEdit):
                     padding-right: 6px;
                 }}
                 QDateEdit {{
-                    background-color: palette(base);
                     color: palette(windowText);
-                    border: 1px solid palette(mid);
                     border-radius: 6px;
                     padding: 6px;
                     min-width: 88px;
@@ -85,5 +83,12 @@ class NoScrollDateEdit(QDateEdit):
 
 
 class NoScrollComboBox(QComboBox):
+    def showPopup(self):
+        # Ensure the container window supports transparency
+        popup = self.view().window()
+        popup.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
+        popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        super().showPopup()
+
     def wheelEvent(self, event):
         event.ignore()
