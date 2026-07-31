@@ -515,6 +515,9 @@ class AddApplicationOverlay(BaseOverlay):
         self.status.setObjectName("formCombo")
         self.status.addItems(STATUS_OPTIONS)
         self.status.setCurrentIndex(1)
+        self.status.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.date_applied = NoScrollDateEdit()
         self.date_applied.setObjectName("formDate")
@@ -523,10 +526,16 @@ class AddApplicationOverlay(BaseOverlay):
         self.job_type = NoScrollComboBox()
         self.job_type.setObjectName("formCombo")
         self.job_type.addItems(JOB_TYPE_OPTIONS)
+        self.job_type.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.work_arrangement = NoScrollComboBox()
         self.work_arrangement.setObjectName("formCombo")
         self.work_arrangement.addItems(WORK_ARRANGEMENT_OPTIONS)
+        self.work_arrangement.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.office_days = NoScrollComboBox()
         self.office_days.addItems(
@@ -535,6 +544,9 @@ class AddApplicationOverlay(BaseOverlay):
         self.office_days.setObjectName("formCombo")
         self.office_days.setEnabled(False)
         self._connect_work_arrangement(self.work_arrangement, self.office_days)
+        self.office_days.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.location = QLineEdit()
         self.location.setObjectName("formInput")
@@ -761,6 +773,7 @@ class ViewApplicationOverlay(BaseOverlay):
                 Qt.TextInteractionFlag.TextSelectableByMouse
                 | Qt.TextInteractionFlag.TextSelectableByKeyboard
                 ))
+            value_label.setCursor(Qt.CursorShape.IBeamCursor)
             value_label.setWordWrap(True)
             return value_label
 
@@ -894,6 +907,9 @@ class EditApplicationOverlay(BaseOverlay):
         self.status.addItems(STATUS_OPTIONS)
         idx = self.status.findText((self.job["status"] or "").strip())
         self.status.setCurrentIndex(idx if idx >= 0 else 0)
+        self.status.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         existing_date_str = self.job["date_applied"] or ""
         date = QDate.fromString(existing_date_str, Qt.DateFormat.ISODate)
@@ -908,6 +924,9 @@ class EditApplicationOverlay(BaseOverlay):
         self.job_type.addItems(JOB_TYPE_OPTIONS)
         idx = self.job_type.findText((self.job["job_type"] or "").strip())
         self.job_type.setCurrentIndex(idx if idx >= 0 else 0)
+        self.job_type.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.work_arrangement = NoScrollComboBox()
         self.work_arrangement.setObjectName("formCombo")
@@ -917,6 +936,9 @@ class EditApplicationOverlay(BaseOverlay):
             ).strip()
         idx = self.work_arrangement.findText(current_work_arrangement)
         self.work_arrangement.setCurrentIndex(idx if idx >= 0 else 0)
+        self.work_arrangement.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.office_days = NoScrollComboBox()
         self.office_days.setObjectName("formCombo")
@@ -932,6 +954,9 @@ class EditApplicationOverlay(BaseOverlay):
                 )
             self.office_days.setCurrentIndex(current_office_days)
         self._connect_work_arrangement(self.work_arrangement, self.office_days)
+        self.office_days.setCursor(
+            Qt.CursorShape.PointingHandCursor
+            )
 
         self.location = QLineEdit(self.job["location"] or "")
         self.location.setObjectName("formInput")
@@ -1624,6 +1649,9 @@ class TrackerPage(QWidget):
         # Border color doesn't work in light themes
         border_color = window_bg.lighter(200)
         hover_bg = "rgba(128, 128, 128, 30)"
+        overlay_bg = "rgba(0, 0, 0, 180)"
+        alert_color = "#DC6363"
+        hover_highlight = highlight.darker(90).name()
         
         stylesheet = f"""
             /* ==================== SEARCH BAR ==================== */
@@ -1648,7 +1676,7 @@ class TrackerPage(QWidget):
                 border-radius: 6px;
             }}
             QPushButton#addApplicationButton:hover {{
-                background-color: {highlight.darker(90).name()};
+                background-color: {hover_highlight};
             }}
             
             /* ==================== FILTER BAR ==================== */
@@ -1703,7 +1731,7 @@ class TrackerPage(QWidget):
             /* ==================== DELETE OVERLAY ==================== */
 
             QLabel#warningLabel {{
-                color: #DC6363;
+                color: {alert_color};
             }}
 
             /* ==================== JOB CARDS ==================== */
@@ -1747,7 +1775,7 @@ class TrackerPage(QWidget):
             
             /* ==================== OVERLAY BACKGROUNDS ==================== */
             QWidget#Overlay {{
-                background-color: rgba(0, 0, 0, 180);
+                background-color: {overlay_bg};
                 }}
             
             /* ==================== DIALOG FRAMES ==================== */
@@ -1761,60 +1789,66 @@ class TrackerPage(QWidget):
             QLabel#dialogTitle {{
                 font-weight: 600; 
                 font-size: 18px; 
-                color: {text_color.name()};
+                color: palette(window-text);
                 letter-spacing: -0.3px;
             }}
             
             /* ==================== FORM INPUTS ==================== */
             QLineEdit#formInput, QTextEdit#formTextEdit {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
                 border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
+                font-size: 14px;
+                color: palette(window-text);
+            }}
+            QLineEdit#formInput:hover, QTextEdit#formTextEdit:hover {{
+                background-color: {hover_bg};
             }}
             QLineEdit#formInput:focus, QTextEdit#formTextEdit:focus {{
                 border: 1px solid palette(highlight);
             }}
-            QDateEdit#formDate:disabled {{
-                background-color: {button_bg.darker(105).name()};
-                color: {text_color.darker(150).name()};
-                border: 1px solid {border_color.darker(110).name()};
-            }}
-            
+            QDateEdit#formDate {{
+                border: 1px solid {border_color.name()};
+                font-size: 14px;
+                }}
+            QDateEdit#formDate:hover {{
+                background-color: {hover_bg};
+                }}
+
             /* ==================== COMBOBOX ==================== */
             QComboBox#formCombo {{
                 border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
-            }}
+                font-size: 14px;
+                }}
+            QComboBox#formCombo:hover {{
+                background-color: {hover_bg};
+                }}
+            QComboBox#formCombo::drop-down {{
+                width: 0;
+                }}
+            QComboBox#formCombo QAbstractItemView {{
+                border: 1px solid palette(highlight);
+                border-radius: 6px;
+                selection-background-color: {hover_bg};
+                }}
 
             /* ==================== VALUE LABELS (READ-ONLY) ==================== */
             QLabel#valueLabel {{
                 background-color: {base_bg.name()};
-                color: {text_color.name()};
+                color: palette(window-text);
                 border: none;
-                border-radius: 6px;
-                padding: 6px;
-            }}
-            
-            /* ==================== VALUE TEXT EDIT (READ-ONLY) ==================== */
-            QTextEdit#valueTextEdit {{
-                background-color: {base_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
                 border-radius: 6px;
                 padding: 6px;
             }}
             
             /* ==================== BUTTONS ==================== */
             QPushButton#cancelBtn {{
-                background-color: {button_bg.name()};
-                color: {text_color.name()};
-                border: 1px solid {border_color.name()};
+                border: none;
+                font-size: 14px;
+                padding: 8px 18px;
                 border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
             }}
             QPushButton#cancelBtn:hover {{
                 background-color: {hover_bg};
@@ -1822,23 +1856,23 @@ class TrackerPage(QWidget):
             
             QPushButton#saveBtn {{
                 background-color: palette(highlight);
-                border: 1px solid palette(highlight);
-                color: white;
+                border: none;
+                color: palette(highlighted-text);
+                font-size: 14px;
+                padding: 8px 18px;
                 border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
             }}
             QPushButton#saveBtn:hover {{
-                background-color: {highlight.darker(90).name()};
+                background-color: {hover_highlight};
             }}
             
             QPushButton#removeBtn {{
                 background-color: rgba(220, 53, 69, 210);
-                border: 1px solid rgba(220, 53, 69, 210);
-                color: white;
+                border: none;
+                color: palette(highlighted-text);
+                font-size: 14px;
+                padding: 8px 18px;
                 border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
             }}
             QPushButton#removeBtn:hover {{
                 background-color: rgba(220, 53, 69, 235);
@@ -1852,9 +1886,9 @@ class TrackerPage(QWidget):
                 color: {text_color.darker(150).name()};
             }}
             QPushButton#closeBtn:hover {{
-                background-color: rgba(128, 128, 128, 50);
+                background-color: {hover_bg};
                 border-radius: 6px;
-                color: {text_color.name()};
+                color: palette(window-text);
             }}
             
             QPushButton#editBtn {{
@@ -1865,9 +1899,9 @@ class TrackerPage(QWidget):
                 color: {text_color.darker(150).name()};
             }}
             QPushButton#editBtn:hover {{
-                background-color: rgba(128, 128, 128, 50);
+                background-color: {hover_bg};
                 border-radius: 6px;
-                color: {text_color.name()};
+                color: palette(window-text);
             }}
             
             /* ==================== SCROLL AREAS ==================== */

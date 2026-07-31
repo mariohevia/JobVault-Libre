@@ -234,11 +234,6 @@ class SupportPage(QWidget):
             padding: 12px;
         }
 
-        QFrame#featureCard:hover {
-            border: 1px solid palette(mid);
-            background: palette(light);
-        }
-
         QLabel#featureIcon {
             font-size: 32px;
         }
