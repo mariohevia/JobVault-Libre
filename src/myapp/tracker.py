@@ -2197,6 +2197,5 @@ class TrackerPage(QWidget):
             **job,
             **EXTENSION_ONLY_DEFAULTS,
             }
-        print(normalised)
         self.db.add_job(normalised)
         self.refresh_from_db()
