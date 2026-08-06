@@ -23,8 +23,8 @@
   <div class="container">
     <a href="index.html" class="brand">
       <img src="assets/JV_logo.png" alt="" data-logo>
-      <span class="brand-mark-fallback" style="display:none">JV</span>
-      JobVault Libre
+      <span class="brand-mark-fallback" style="display:none">JV Libre</span>
+      <span class="brand-jobvault">JobVault</span> <span class="brand-libre">Libre</span>
     </a>
     <nav class="nav-links">
       <a class="nav-link" href="https://github.com/mariohevia/JobVault-Libre" target="_blank" rel="noopener">
@@ -36,7 +36,7 @@
         <span class="nav-text">Support</span>
       </a>
       <a class="btn btn-primary" href="download.html">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
         Download
       </a>
     </nav>
@@ -50,11 +50,11 @@
     <div class="container hero-grid">
       <div>
         <span class="eyebrow">Local-only · Open source · GPL-3.0</span>
-        <h1>Manage your job search with complete privacy and control.</h1>
+        <h2 style="font-size:clamp(1.7rem,3vw,2.3rem);">Manage your job search with complete privacy and control.</h1>
         <p class="hero-sub">JobVault Libre is a free, open-source desktop app for tracking job applications. Every posting, deadline, note, and follow-up stays in a file on your own computer — no cloud, no accounts, no one watching you apply.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary" href="download.html">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
             Download for Linux
           </a>
           <a class="btn btn-outline-dark" href="https://github.com/mariohevia/JobVault-Libre" target="_blank" rel="noopener">
@@ -68,8 +68,8 @@
       <div style="display:flex; align-items:center; gap:26px; justify-content:center;">
         <div class="mock-window" style="max-width:400px; width:100%;">
           <div class="mock-titlebar">
+            <span class="mock-titlebar-label">JobVault Libre</span>
             <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-            <span class="mock-titlebar-label">jobvault — local database</span>
           </div>
           <div class="mock-body">
             <div class="mock-row active">
@@ -113,13 +113,13 @@
       <div class="compare">
         <div class="compare-row head">
           <div class="compare-cell"></div>
-          <div class="compare-cell">Typical cloud tracker</div>
+          <div class="compare-cell">Typical job tracker</div>
           <div class="compare-cell">JobVault Libre</div>
         </div>
         <div class="compare-row">
           <div class="compare-cell label" data-label="Where your data lives">Where your data lives</div>
           <div class="compare-cell bad">On their servers</div>
-          <div class="compare-cell good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>In a file on your computer</div>
+          <div class="compare-cell good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>On your computer</div>
         </div>
         <div class="compare-row">
           <div class="compare-cell label" data-label="Account required">Account required</div>
@@ -133,7 +133,7 @@
         </div>
         <div class="compare-row">
           <div class="compare-cell label" data-label="Who can see your applications">Who can see your applications</div>
-          <div class="compare-cell bad">The company, and whoever they share with</div>
+          <div class="compare-cell bad">The company, and its “data partners”</div>
           <div class="compare-cell good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Only you</div>
         </div>
         <div class="compare-row">
@@ -160,12 +160,12 @@
         <div class="feature-card">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg></div>
           <h3>Native desktop app</h3>
-          <p>A fast, offline PyQt6 application that runs entirely on your machine. No browser tab, no background server.</p>
+          <p>A fast, offline PyQt6 application that runs entirely on your machine. No browser tab.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"/><line x1="14" y1="14" x2="19" y2="19"/></svg></div>
           <h3>Instant search</h3>
-          <p>Find any application in a fraction of a second — there's no network request standing between you and your data.</p>
+          <p>Find any application in a fraction of a second. There's no network request standing between you and your data.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l-5 7 5 7"/><path d="M16 5l5 7-5 7"/></svg></div>
@@ -179,8 +179,8 @@
         </div>
         <div class="feature-card">
           <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
-          <h3>Structured tracking</h3>
-          <p>Record postings, deadlines, application materials, follow-ups, and outcomes — all in one organized place.</p>
+          <h3>Firefox & Chrome extension</h3>
+          <p>Automatically detect job details from LinkedIn and Indeed and add applications to JobVault Libre with a single click.</p>
         </div>
       </div>
     </div>
@@ -190,7 +190,7 @@
   <section class="band band-dark">
     <div class="container">
       <span class="eyebrow">Getting started</span>
-      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); margin:16px 0 44px; max-width:22ch;">Three steps, and you're tracking offline.</h2>
+      <h2 style="font-size:clamp(1.7rem,3vw,2.3rem); margin:16px 0 44px; max-width:22ch;">Three steps, and you're tracking privately.</h2>
       <div class="steps">
         <div class="step">
           <span class="step-num">01</span>
@@ -200,12 +200,12 @@
         <div class="step">
           <span class="step-num">02</span>
           <h3>Log your applications</h3>
-          <p>Add postings as you apply — company, role, dates, materials, and notes. Whatever you need to remember later.</p>
+          <p>Add postings as you apply: company, role, dates, job description, and notes. Whatever you need to remember later.</p>
         </div>
         <div class="step">
           <span class="step-num">03</span>
           <h3>Stay on top of it</h3>
-          <p>Search instantly, update statuses as you hear back, and keep your whole search organized in one private place.</p>
+          <p>Search instantly, update statuses as you hear back, and keep your whole search organised in one private place.</p>
         </div>
       </div>
     </div>
@@ -217,7 +217,7 @@
       <div>
         <span class="eyebrow">What's next</span>
         <h2 style="font-size:clamp(1.5rem,2.6vw,2rem); margin:16px 0 14px;">Still early, still growing.</h2>
-        <p style="color:var(--paper-text-muted); max-width:48ch;">JobVault Libre is actively developed. Windows and macOS builds are planned, alongside an optional browser extension for capturing job postings straight from the source — still local-only, still no accounts. Follow progress, open an issue, or contribute on GitHub.</p>
+        <p style="color:var(--paper-text-muted); max-width:48ch;">JobVault Libre is actively developed. Windows and macOS builds are planned, alongside improvments on the optional browser extension for capturing job postings straight from the source (still local-only, still no accounts). Follow progress, open an issue, or contribute on GitHub.</p>
       </div>
       <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:flex-start;">
         <a class="btn btn-outline-paper" href="https://github.com/mariohevia/JobVault-Libre" target="_blank" rel="noopener">
@@ -260,7 +260,7 @@
         <a href="index.html" class="brand">
           <img src="assets/JV_logo.png" alt="" data-logo>
           <span class="brand-mark-fallback" style="display:none">JV</span>
-          JobVault Libre
+          <span class="brand-jobvault footer">JobVault</span> <span class="brand-libre footer">Libre</span>
         </a>
         <p>A free, open-source, local-only job application tracker. Built to run entirely on your own machine.</p>
       </div>

@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
         logo_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         title_label = QLabel(
             '<span style="font-size:14pt; font-weight:600; '
-            'color: rgb(19, 64, 109);">JobVault </span> '
+            'color: rgb(19, 64, 159);">JobVault </span> '
             '<span style="font-size:8pt; font-weight:500; '
             'color: rgb(120, 200, 80);">Libre</span>'
             )

@@ -16,7 +16,7 @@ class AppIcon(QIcon):
 
 class LogoIcon(AppIcon):
     def __init__(self) -> None:
-        super().__init__(str("JV_logo.png"))
+        super().__init__("JV_logo.png")
 
 # ── Icons taken from Tabler Icons (MIT) https://tabler.io/icons ──────────────
 # All icons are downloaded with size 24, stroke 2 and color #ffffff

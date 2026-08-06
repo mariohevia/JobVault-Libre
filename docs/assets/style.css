@@ -6,42 +6,49 @@
    reading and reference. Brass = the vault mechanism (primary
    action). Sage = the private/local signal (secondary accent).
    ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
 
 :root {
   /* --- color: vault (dark) --- */
-  --ink: #101511;
+  --ink: #101135;
   --ink-raised: #171E19;
   --ink-line: rgba(237, 232, 219, 0.12);
-  --ink-text: #ECE7DA;
-  --ink-text-muted: #97A39A;
+  --ink-text: #dadcec;
+  --ink-text-muted: #9797a3;
 
   /* --- color: ledger (paper) --- */
-  --paper: #F3EEE1;
+  --paper: rgb(240, 240, 255);
   --paper-raised: #FFFFFF;
   --paper-line: rgba(23, 24, 19, 0.12);
   --paper-text: #1B1F1A;
   --paper-text-muted: #5B6259;
 
   /* --- accents --- */
-  --brass: #B4863A;
-  --brass-bright: #D6A64E;
+  --brass: #58c830;
+  --brass-bright: #38a810;
   --brass-ink: #3A2A0F;
   --sage: #5D7D68;
-  --sage-bright: #86AD91;
+  --sage-bright: #8690ad;
   --rust: #A85A3C;
 
   /* --- type --- */
-  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
-  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Montserrat", serif;
+  --font-brand: "Noto Sans", sans-serif;
+  --font-body: "Montserrat", sans-serif;
+  --font-mono: "Montserrat", monospace;
 
   /* --- layout --- */
   --container: 1120px;
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 20px;
-}
 
+  /* --- mock app --- */
+  --app-bg-color: #202024;
+  --app-titlebar-color: #2e2e32;
+  --app-hover-color: rgba(45, 45, 45);
+  --app-border-color: #404047;
+}
 /* ---------- reset ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -69,6 +76,32 @@ button { font: inherit; }
   outline: 2px solid var(--brass-bright);
   outline-offset: 3px;
   border-radius: 4px;
+}
+
+.brand-jobvault {
+  color: #13409f;
+  font-size:28pt;
+  font-weight:600;
+  font-family: var(--font-brand);
+}
+
+.brand-libre {
+  color: #58c830;
+  font-size:16pt;
+  font-weight:500;
+  font-family: var(--font-brand);
+  margin-left: -5px;
+  margin-top: 21px;
+}
+
+.brand-jobvault.footer {
+  font-size:20pt;
+  font-weight:600;
+}
+
+.brand-libre.footer {
+  font-size:10pt;
+  font-weight:500;
 }
 
 .container {
@@ -151,7 +184,7 @@ button { font: inherit; }
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(16, 21, 17, 0.9);
+  background: rgb(0, 3, 40);
   backdrop-filter: saturate(140%) blur(10px);
   border-bottom: 1px solid var(--ink-line);
 }
@@ -272,27 +305,24 @@ button { font: inherit; }
 
 /* hero mock UI: a stylized application-tracker card, not a screenshot */
 .mock-window {
-  background: var(--paper-raised);
+  background: var(--app-bg-color);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(0,0,0,0.06);
-  box-shadow: 0 30px 70px -25px rgba(0,0,0,0.55), 0 4px 18px rgba(0,0,0,0.25);
   overflow: hidden;
-  transform: rotate(1.2deg);
 }
 .mock-titlebar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 13px 16px;
-  background: #E9E3D3;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: var(--app-titlebar-color);
 }
-.mock-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(0,0,0,0.14); }
+.mock-dot { width: 15px; height: 15px; border-radius: 50%; background: #434347; }
 .mock-titlebar-label {
-  margin-left: 6px;
+  margin-left: 85px;
+  margin-right: 37px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: var(--paper-text-muted);
+  color: var(--ink-text);
   letter-spacing: 0.03em;
 }
 .mock-body { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
@@ -301,24 +331,32 @@ button { font: inherit; }
   align-items: center;
   gap: 14px;
   padding: 13px 14px;
-  border: 1px solid var(--paper-line);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: var(--app-bg-color);
+  border: 1px solid;
+  border-color: var(--app-border-color); 
 }
-.mock-row.active { border-color: var(--sage); background: #EEF3EE; }
-.mock-role { font-weight: 600; font-size: 14.5px; color: var(--paper-text); }
-.mock-company { font-family: var(--font-mono); font-size: 12px; color: var(--paper-text-muted); margin-top: 2px; }
+.mock-row.active { 
+  border: 1px solid;
+  border-color: var(--app-border-color); 
+  background: var(--app-hover-color); 
+}
+.mock-role { font-weight: 600; font-size: 14.5px; color: var(--ink-text); }
+.mock-company { font-family: var(--font-mono); font-size: 12px; color: var(--ink-text); margin-top: 2px; }
+.mock-location { font-family: var(--font-mono); font-size: 12px; color: var(--ink-text-muted); margin-top: 2px; }
 .mock-status {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 11px;
-  padding: 5px 10px;
+  padding: 3px;
   border-radius: 999px;
-  white-space: nowrap;
+  white-space: nowrap;  
+  width: 80px;
+  height: 24px;
 }
-.status-interview { background: #E4EEE5; color: var(--sage); }
-.status-applied { background: #EFE8D8; color: var(--brass); }
-.status-offer { background: #EAF2EC; color: #3F6B4C; }
+.status-interview { background: #F59E0B; color: #ffffff; text-align: center; }
+.status-applied { background: #3B82F6; color: #ffffff; text-align: center; }
+.status-offer { background: #2b7a2b; color: #ffffff; text-align: center; }
 .mock-lock {
   display: flex;
   align-items: center;
@@ -355,7 +393,7 @@ button { font: inherit; }
   padding-top: 20px;
 }
 .compare-cell.label { color: var(--paper-text-muted); font-size: 14.5px; }
-.compare-cell.bad { color: #8B5A45; }
+.compare-cell.bad { color: #b32727; }
 .compare-cell.good { color: var(--sage); font-weight: 600; }
 .compare-cell.good svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; }
 
@@ -371,8 +409,8 @@ button { font: inherit; }
 .feature-icon {
   width: 40px; height: 40px;
   border-radius: 10px;
-  background: #EFE8D8;
-  color: var(--brass);
+  background: rgb(230, 230, 255);
+  color: rgb(19, 64, 159);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 16px;
 }
@@ -453,8 +491,8 @@ button { font: inherit; }
   padding: 4px 9px;
   border-radius: 999px;
 }
-.badge-ready { background: #E4EEE5; color: var(--sage); }
-.badge-soon { background: #EFEAE0; color: var(--paper-text-muted); }
+.badge-ready { background: #2b7a2b; color: #ffffff; }
+.badge-soon { background: #6B7280; color: #ffffff; }
 .platform-desc { color: var(--paper-text-muted); font-size: 14px; flex-grow: 1; }
 
 .steps-panel {
@@ -471,7 +509,7 @@ button { font: inherit; }
 .steps-panel-row + .steps-panel-row { border-top: 1px solid var(--paper-line); }
 .steps-panel-num {
   font-family: var(--font-mono);
-  color: var(--brass);
+  color: rgb(19, 64, 159);
   font-size: 14px;
   flex: none;
   width: 22px;
@@ -527,10 +565,10 @@ code, .inline-code {
   text-align: center;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
-.support-option:hover { border-color: var(--brass); transform: translateY(-2px); }
+.support-option:hover { border-color: rgb(19, 64, 159); transform: translateY(-2px); }
 .support-option .icon-circle {
   width: 42px; height: 42px; border-radius: 50%;
-  background: #EFE8D8; color: var(--brass);
+  background: rgb(230, 230, 255); color: rgb(19, 64, 159);
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 12px;
 }
@@ -566,7 +604,7 @@ code, .inline-code {
   .brand { font-size: 16.5px; gap: 8px; }
   .brand img, .brand-mark-fallback { width: 26px; height: 26px; }
   .btn { padding: 11px 16px; font-size: 14.5px; }
-  .stamp { width: 100px; height: 100px; font-size: 9px; }
+  .stamp { width: 100px; height: 100px; font-size: 11px;}
   .support-card { padding: 26px; }
   .footer-cols { gap: 30px; }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
