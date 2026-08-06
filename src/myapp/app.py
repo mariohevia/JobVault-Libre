@@ -1,5 +1,8 @@
 import traceback
 import sys
+import threading
+
+from myapp.api_server import bridge, run_server
 
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -347,9 +350,16 @@ def run_app() -> None:
     app = QApplication([])
     app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
     app.setWindowIcon(LogoIcon())
-    
+
     user_paths = get_app_paths_for_user("JobVaultLibre", user_id="Default")
     window = MainWindow(user_paths)
+
+    # Refresh the tracker page whenever the extension posts a new job
+    bridge.job_received.connect(window.applications_page.add_job_from_extension)
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
     window.showMaximized()
     install_exception_hook()
     app.exec()

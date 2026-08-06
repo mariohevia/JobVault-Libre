@@ -45,3 +45,10 @@ STATUS_COLOURS = {
     "Rejected": "#EF4444",              # Red - negative/closed
     "Withdrawn": "#6B7280",             # Gray - neutral/inactive
     }
+
+EXTENSION_ONLY_DEFAULTS = {
+    "cv_pdf": None,
+    "cv_text": None,
+    "cover_letter_pdf": None,
+    "cover_letter_text": None,
+}

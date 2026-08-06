@@ -49,6 +49,7 @@ from myapp.constants import (
     STATUS_COLOURS, 
     JOB_TYPE_OPTIONS, 
     WORK_ARRANGEMENT_OPTIONS,
+    EXTENSION_ONLY_DEFAULTS,
     )
 from myapp.utils import JobDict, NewJobDict
 
@@ -769,10 +770,10 @@ class ViewApplicationOverlay(BaseOverlay):
                 QSizePolicy.Policy.Expanding, 
                 QSizePolicy.Policy.Minimum
                 )
-            value_label.setTextInteractionFlags((
+            value_label.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse
                 | Qt.TextInteractionFlag.TextSelectableByKeyboard
-                ))
+                )
             value_label.setCursor(Qt.CursorShape.IBeamCursor)
             value_label.setWordWrap(True)
             return value_label
@@ -2185,3 +2186,16 @@ class TrackerPage(QWidget):
         
         if self._overlay is not None and self._overlay.isVisible():
             self._overlay.setGeometry(self.rect())
+
+    def add_job_from_extension(self, job: dict) -> None:
+        """
+        Handles a job application received from the browser extension via
+        the local API server. Connected to bridge.job_received, so this
+        runs on the GUI thread — safe to touch self.db and the UI directly.
+        """
+        normalised = {
+            **job,
+            **EXTENSION_ONLY_DEFAULTS,
+            }
+        self.db.add_job(normalised)
+        self.refresh_from_db()
