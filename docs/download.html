@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Download — JobVault Libre</title>
+<meta name="description" content="Download JobVault Libre, the free and open-source local-only job application tracker. Currently available for Linux, with Windows and macOS planned.">
+
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <img src="assets/JV_logo.png" alt="" data-logo>
+      <span class="brand-mark-fallback" style="display:none">JV</span>
+      <span class="brand-jobvault">JobVault</span> <span class="brand-libre">Libre</span>
+    </a>
+    <nav class="nav-links">
+      <a class="nav-link" href="https://github.com/mariohevia/JobVault-Libre" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M21 3l-9 9"/><path d="M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5"/></svg>
+        <span class="nav-text">GitHub</span>
+      </a>
+      <a class="nav-link" href="support.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-9.5-9.1C1 8 3 4.5 6.7 4.5c2 0 3.4 1.1 4.3 2.5.9-1.4 2.3-2.5 4.3-2.5C19 4.5 21 8 20.5 11.9 18.5 16.4 12 21 12 21z"/></svg>
+        <span class="nav-text">Support</span>
+      </a>
+      <a class="btn btn-primary" href="#platforms">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        Download
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="page-hero band-dark">
+    <div class="container">
+      <span class="eyebrow">Download</span>
+      <h1>Get JobVault Libre</h1>
+      <p>Currently packaged for Linux, with Windows and macOS builds planned. Every release is built from the same source you can read on GitHub. Nothing hidden, nothing added.</p>
+    </div>
+  </section>
+
+  <section class="band band-raised-paper" id="platforms">
+    <div class="container">
+      <div class="platform-cards">
+
+        <div class="platform-card is-ready">
+          <div class="platform-top">
+            <span class="platform-name">Linux</span>
+            <span class="platform-badge badge-ready">Available</span>
+          </div>
+          <p class="platform-desc">The primary supported platform today. Download the latest build directly from GitHub Releases.</p>
+          <a class="btn btn-primary btn-block" href="https://github.com/mariohevia/JobVault-Libre/releases/latest" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            Download latest release
+          </a>
+        </div>
+
+        <div class="platform-card">
+          <div class="platform-top">
+            <span class="platform-name">Windows</span>
+            <span class="platform-badge badge-soon">Planned</span>
+          </div>
+          <p class="platform-desc">A packaged Windows build isn't available yet. In the meantime, you can run JobVault Libre from source.</p>
+          <a class="btn btn-outline-paper btn-block btn-disabled" href="#" aria-disabled="true">Coming soon</a>
+        </div>
+
+        <div class="platform-card">
+          <div class="platform-top">
+            <span class="platform-name">macOS</span>
+            <span class="platform-badge badge-soon">Planned</span>
+          </div>
+          <p class="platform-desc">A packaged macOS build isn't available yet. In the meantime, you can run JobVault Libre from source.</p>
+          <a class="btn btn-outline-paper btn-block btn-disabled" href="#" aria-disabled="true">Coming soon</a>
+        </div>
+
+      </div>
+
+      <p style="margin-top:18px; font-size:14.5px; color:var(--paper-text-muted);">
+        Looking for an older version, release notes, or checksums? See
+        <a href="https://github.com/mariohevia/JobVault-Libre/releases" target="_blank" rel="noopener" style="text-decoration:underline; color:var(--paper-text);">all releases on GitHub →</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="band band-paper">
+    <div class="container" style="max-width:760px;">
+      <span class="eyebrow">Installing on Linux</span>
+      <h2 style="font-size:clamp(1.5rem,2.6vw,2rem); margin:16px 0 30px;">Three steps, no root required for most setups.</h2>
+
+      <div class="steps-panel">
+        <div class="steps-panel-row">
+          <span class="steps-panel-num">01</span>
+          <div>
+            <h4>Download the latest release</h4>
+            <p>Use the button above, or grab it directly from the <a href="https://github.com/mariohevia/JobVault-Libre/releases" target="_blank" rel="noopener" style="text-decoration:underline;">GitHub Releases page</a>. Check the release notes for the exact file to grab for your distribution.</p>
+          </div>
+        </div>
+        <div class="steps-panel-row">
+          <span class="steps-panel-num">02</span>
+          <div>
+            <h4>Make it executable</h4>
+            <p>If the download doesn't already have execute permissions, set them from a terminal:</p>
+            <div class="code-block" style="margin-top:10px;"><span class="c"># from the folder you downloaded it to</span><br>chmod +x JobVault-Libre*</div>
+          </div>
+        </div>
+        <div class="steps-panel-row">
+          <span class="steps-panel-num">03</span>
+          <div>
+            <h4>Run it</h4>
+            <p>Double-click the file in your file manager, or launch it from the terminal. JobVault Libre creates its local data file on first run. No setup screens, no accounts.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:24px;">
+        Packaging is still evolving release to release. If something doesn't run as expected on your distribution, please <a href="https://github.com/mariohevia/JobVault-Libre/issues" target="_blank" rel="noopener" style="text-decoration:underline;">open an issue on GitHub</a> — it helps the next person too.
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-raised-paper">
+    <div class="container grid-2" style="align-items:center;">
+      <div>
+        <span class="eyebrow">Prefer to build it yourself</span>
+        <h2 style="font-size:clamp(1.4rem,2.4vw,1.8rem); margin:16px 0 14px;">Run it from source, on any platform.</h2>
+        <p style="color:var(--paper-text-muted); max-width:48ch;">JobVault Libre is a Python / PyQt6 application. If you're comfortable with a terminal, the build instructions in the repository walk through setting up a local copy on Linux, Windows, or macOS today.</p>
+      </div>
+      <div>
+        <a class="btn btn-outline-paper" href="https://github.com/mariohevia/JobVault-Libre/blob/main/build_instructions.md" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l-5 7 5 7"/><path d="M16 5l5 7-5 7"/></svg>
+          Read the build instructions
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-dark cta-band">
+    <div class="container">
+      <span class="stamp" aria-hidden="true" style="margin:0 auto 26px;"><span>GPL-3.0 Licensed</span></span>
+      <h2>Free to use, free to inspect, free to change.</h2>
+      <p>JobVault Libre will always be released under the GPL-3.0 license.</p>
+      <div class="cta-actions">
+        <a class="btn btn-primary" href="https://github.com/mariohevia/JobVault-Libre/releases/latest" target="_blank" rel="noopener">Download latest release</a>
+        <a class="btn btn-outline-dark" href="support.html">Support the project</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="index.html" class="brand">
+          <img src="assets/JV_logo.png" alt="" data-logo>
+          <span class="brand-mark-fallback" style="display:none">JV</span>
+          <span class="brand-jobvault footer">JobVault</span> <span class="brand-libre footer">Libre</span>
+        </a>
+        <p>A free, open-source, local-only job application tracker. Built to run entirely on your own machine.</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Site</h4>
+          <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="download.html">Download</a></li>
+            <li><a href="support.html">Support this project</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/mariohevia/JobVault-Libre" target="_blank" rel="noopener">Source code</a></li>
+            <li><a href="https://github.com/mariohevia/JobVault-Libre/issues" target="_blank" rel="noopener">Report an issue</a></li>
+            <li><a href="https://github.com/mariohevia/JobVault-Libre/blob/main/build_instructions.md" target="_blank" rel="noopener">Build from source</a></li>
+            <li><a href="https://github.com/mariohevia/JobVault-Libre/blob/main/LICENSE" target="_blank" rel="noopener">GPL-3.0 license</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span data-year>2026</span> JobVault Libre. Free and open source under the GPL-3.0 license.</span>
+      <span class="license">Includes QToggle by Luan Dias, GPL-3.0.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/script.js"></script>
+</body>
+</html>
