@@ -95,6 +95,7 @@ Run:
 python src/myapp/app.py
 ```
 
+See the [build instructions](build_instructions.md) for details on building the app.
 
 ## Project Structure
 

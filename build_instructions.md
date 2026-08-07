@@ -7,13 +7,13 @@ pyinstaller \
   --windowed \
   --onefile \
   --name JobVaultLibre \
-  --icon assets/JV_logo.png \
-  --add-data "assets:assets" \
-  src/app.py
+  --icon src/myapp/assets/JV_logo.png \
+  --add-data "src/myapp/resources:myapp/resources" \
+  src/myapp/app.py
 ```
   
 * Your executable is at: `dist/JobVaultLibre`
-* Your icon is at: `.assets/JV_logo.png`
+* Your icon is at: `src/myapp/assets/JV_logo.ico`
 
 All commands are safe and distro-agnostic.
 
@@ -41,7 +41,7 @@ chmod +x AppDir/usr/bin/JobVaultLibre
 ## 3) Copy the icon
 
 ```bash
-cp .assets/JV_logo.png AppDir/usr/share/icons/hicolor/256x256/apps/jobvaultlibre.png
+cp src/myapp/assets/JV_logo.png AppDir/usr/share/icons/hicolor/256x256/apps/jobvaultlibre.png
 ```
 
 > Icon name **must match** the `Icon=` field in the `.desktop` file (without extension).
@@ -84,16 +84,16 @@ chmod +x AppDir/JobVaultLibre.AppRun
 Run:
 
 ```bash
-find AppDir -type f -maxdepth 4
+find AppDir -type f 
 ```
 
 You should see:
 
 ```
 AppDir/JobVaultLibre.AppRun
-AppDir/usr/bin/JobVaultLibre
-AppDir/usr/share/applications/jobvaultlibre.desktop
 AppDir/usr/share/icons/hicolor/256x256/apps/jobvaultlibre.png
+AppDir/usr/share/applications/jobvaultlibre.desktop
+AppDir/usr/bin/JobVaultLibre
 ```
 
 ---
