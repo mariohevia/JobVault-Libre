@@ -6,7 +6,7 @@ browser extension and hands it off to the PyQt GUI thread safely.
 import uvicorn
 from fastapi import FastAPI
 from PyQt6.QtCore import QObject, pyqtSignal
-
+from myapp.api_models import ExtensionJob
 
 class ApiBridge(QObject):
     """
@@ -27,12 +27,12 @@ async def ping():
 
 
 @app.post("/jobs")
-async def receive_job(job: dict):
+async def receive_job(job: ExtensionJob):
     """
     Receives job application data posted by the browser extension.
     Sends the data to Qt for it to update the database.
     """
-    # TODO: Ensure that job has the actual values needed and wanted.
+    job = job.model_dump()
     bridge.job_received.emit(job)
     return {"status": "received"}
 
