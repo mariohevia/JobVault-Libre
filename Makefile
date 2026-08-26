@@ -3,7 +3,7 @@
 PYINSTALLER := pyinstaller
 LINUXDEPLOY := linuxdeploy
 
-APP_NAME := JobVault-Libre
+APP_NAME := JobVault_Libre
 APP_DIR := AppDir
 
 SOURCE := src/myapp/app.py
@@ -65,7 +65,6 @@ linux:
 	$(LINUXDEPLOY) \
 		--appdir $(APP_DIR) \
 		--output appimage
-		--output-file $(APPIMAGE)
 
 	@echo "Linux AppImage created: $(APPIMAGE)"
 
