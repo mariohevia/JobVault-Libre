@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QStackedWidget,
     )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QGuiApplication, QFont
 
 from myapp.database import JobDatabase
@@ -25,9 +25,10 @@ from myapp.tracker import TrackerPage
 from myapp.cv_config import ProfilePage
 from myapp.cv_builder import CVBuilderPage
 from myapp.support_project import SupportPage
+from myapp.settings import SettingsPage, load_settings
 from myapp.utils import get_app_paths_for_user
 from myapp.exceptions import AppError
-from myapp.icons import LogoIcon
+from myapp.icons import LogoIcon, SettingsIcon
 
 class FatalErrorDialog(QDialog):
     """
@@ -218,6 +219,20 @@ class MainWindow(QMainWindow):
         # self.btn_builder = self._make_nav_button("CV Builder")
         self.btn_support_project = self._make_nav_button("Support Us")
 
+        icon_settings_size = 32
+        btn_settings_size = 40
+        self.btn_settings = QPushButton()
+        self.btn_settings.setIcon(
+            SettingsIcon(size=icon_settings_size,color_name="#aaaaaa")
+            )
+        self.btn_settings.setObjectName("settingsBtn")
+        self.btn_settings.setToolTip("Settings")
+        self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_settings.setFixedSize(btn_settings_size, btn_settings_size)
+        self.btn_settings.setIconSize(
+            QSize(icon_settings_size, icon_settings_size)
+            )
+
         nav_header_layout = QHBoxLayout()
         nav_header_layout.setContentsMargins(0, 0, 0, 0)
         nav_header_layout.setSpacing(8)
@@ -233,6 +248,7 @@ class MainWindow(QMainWindow):
         # nav_layout.addWidget(self.btn_builder)
         nav_layout.addWidget(self.btn_support_project)
         nav_layout.addStretch()
+        nav_layout.addWidget(self.btn_settings, alignment=Qt.AlignmentFlag.AlignLeft)
 
         root_layout.addWidget(nav)
 
@@ -252,10 +268,13 @@ class MainWindow(QMainWindow):
         self.support_page = SupportPage(self.palette)
         self.stack.addWidget(self.support_page)
 
+        self.settings_page = SettingsPage(self.user_paths["settings"])
+        self.stack.addWidget(self.settings_page)
+
         # ── Wire up navigation ───────────────────────────────────────────────────
         self.btn_applications.clicked.connect(
             lambda: self._switch_page(self.applications_page, self.btn_applications)
-        )
+            )
         # self.btn_profile.clicked.connect(
         #     lambda: self._switch_page(self.profile_page, self.btn_profile)
         # )
@@ -264,13 +283,18 @@ class MainWindow(QMainWindow):
         # )
         self.btn_support_project.clicked.connect(
             lambda: self._switch_page(self.support_page, self.btn_support_project)
-        )
+            )
+
+        self.btn_settings.clicked.connect(
+            lambda: self._switch_page(self.settings_page, self.btn_settings)
+            )
 
         self._switch_page(self.applications_page, self.btn_applications)
 
         # TODO: Ensure that the colours used here fit for every theme or use a
         # theme based colour for everything
         self.setStyleSheet(self._get_stylesheet())
+        
 
     def _get_stylesheet(self) -> str:
         return """
@@ -318,13 +342,24 @@ class MainWindow(QMainWindow):
                                     stop:0.041 transparent,
                                     stop:1    palette(mid));
             }
+            QPushButton#settingsBtn {
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+                color: #aaaaaa;
+            }
+            QPushButton#settingsBtn:hover {
+                background-color: rgba(128, 128, 128, 30);
+                border-radius: 6px;
+                color: palette(window-text);
+            }
         """
 
     def _switch_page(self, page: QWidget, clicked_button: QPushButton) -> None:
         for btn in (
-            self.btn_applications, 
-            # self.btn_profile, 
-            # self.btn_builder, 
+            self.btn_applications,
+            # self.btn_profile,
+            # self.btn_builder,
             self.btn_support_project
             ):
             btn.setChecked(btn is clicked_button)
@@ -357,7 +392,11 @@ def run_app() -> None:
     # Refresh the tracker page whenever the extension posts a new job
     bridge.job_received.connect(window.applications_page.add_job_from_extension)
 
-    server_thread = threading.Thread(target=run_server, daemon=True)
+    settings = load_settings(user_paths["settings"])
+    server_port = settings['JobVault Libre Extension']['jobvault_app_port']
+    server_thread = threading.Thread(
+        target=run_server, kwargs={"port": server_port}, daemon=True
+        )
     server_thread.start()
 
     window.showMaximized()

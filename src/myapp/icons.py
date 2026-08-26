@@ -3,7 +3,7 @@ from importlib import resources
 from PyQt6.QtGui import QIcon, QPixmap, QPalette, QPainter
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QByteArray, Qt
+from PyQt6.QtCore import QByteArray, Qt, QRectF
 
 # ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ class LogoIcon(AppIcon):
     def __init__(self) -> None:
         super().__init__("JV_logo.png")
 
+
 # ── Icons taken from Tabler Icons (MIT) https://tabler.io/icons ──────────────
 # All icons are downloaded with size 24, stroke 2 and color #ffffff
 class AppIconSVG(QIcon):
@@ -29,6 +30,7 @@ class AppIconSVG(QIcon):
         filename: str,
         color_role: QPalette.ColorRole | None = QPalette.ColorRole.WindowText,
         color_name: str | None = None,
+        size: int = 24,
     ) -> None:
         super().__init__()
 
@@ -46,14 +48,15 @@ class AppIconSVG(QIcon):
                 QApplication.instance().palette().color(color_role).name())
 
         renderer = QSvgRenderer(QByteArray(content.encode()))
-        pixmap = QPixmap(renderer.defaultSize())
+        pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
 
         painter = QPainter(pixmap)
-        renderer.render(painter)
+        renderer.render(painter, QRectF(0, 0, size, size))
         painter.end()
 
         self.addPixmap(pixmap)
+
 
 class CalendarIcon(AppIconSVG):
     def __init__(
@@ -156,6 +159,19 @@ class AlertIcon(AppIconSVG):
         color_name=None) -> None:
         super().__init__(
             "alert-circle.svg", color_role=color_role, color_name=color_name
+            )
+
+class SettingsIcon(AppIconSVG):
+    def __init__(
+        self, 
+        color_role=QPalette.ColorRole.WindowText, 
+        color_name=None,
+        size: int = 24) -> None:
+        super().__init__(
+            "settings.svg",
+            color_role=color_role,
+            color_name=color_name,
+            size=size
             )
 
 class GithubSponsorIcon(AppIconSVG):
