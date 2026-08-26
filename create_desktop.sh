@@ -2,10 +2,10 @@
 set -eu
 
 # ========= Config (change these) =========
-VERSION="0.0.2"                 # <- change version here (no leading "v")
+VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
 REPO_OWNER="mariohevia"
 REPO_NAME="JobVault-Libre"
-APPIMAGE_BASENAME="JobVault_Libre"
+APPIMAGE_BASENAME="JobVault-Libre"
 
 # Optional overrides (leave empty to auto-extract icon from the AppImage)
 # ICON_FILE="/path/to/icon.png"

@@ -1,0 +1,19 @@
+[project]
+name = "JobVault-Libre"
+version = "0.0.2"
+description = "JobVault Libre is a privacy-focused, local-only job application tracker designed for users who want full control over their data."
+readme = "README.md"
+authors = [
+    { name = "Mario Hevia", email = "mario_hevia@hotmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.141.1",
+    "pyqt6>=6.11.0",
+    "pyyaml>=6.0.3",
+    "uvicorn>=0.52.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
