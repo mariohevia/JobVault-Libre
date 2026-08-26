@@ -149,6 +149,7 @@ def get_app_paths_for_user(app_name: str, user_id: str) -> dict[str, Path]:
         "users": profiles_dir,
         "user": profile_dir,
         "db": profile_dir / "database.sqlite",
+        "settings": profile_dir / "settings.json",
         "config": profile_dir / "config.json",
         "cache": profile_dir / "cache",
         "cvs": profile_dir / "cvs",
