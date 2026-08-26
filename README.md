@@ -60,7 +60,7 @@ Download the AppImage file and make it executable:
 
 ```bash
 chmod +x JobVault_Libre-x86_64.AppImage
-````
+```
 
 Run:
 
@@ -73,8 +73,6 @@ Run:
 Requirements:
 
 * Python 3.11+
-* PyQt6
-* Other dependencies listed in the project configuration
 
 Clone the repository:
 
@@ -86,16 +84,52 @@ cd JobVault-Libre
 Install dependencies:
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 Run:
 
 ```bash
-python src/myapp/app.py
+cd src
+python -m myapp.app
 ```
 
-See the [build instructions](build_instructions.md) for details on building the app.
+### Building from source
+
+Requirements:
+
+* Python 3.11+
+* linuxdeploy
+
+Clone the repository:
+
+```bash
+git clone https://github.com/<your-user>/JobVault-Libre.git
+cd JobVault-Libre
+```
+
+Install dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install pyinstaller
+```
+
+Build:
+
+```bash
+make linux
+```
+
+Register the AppImage as a desktop application:
+
+```bash
+sudo .\create_desktop.sh
+```
 
 ## Project Structure
 
@@ -105,7 +139,9 @@ See the [build instructions](build_instructions.md) for details on building the 
 │   └── myapp/          # Application source code
 ├── docs/               # Project website
 ├── LICENSE
-└── README.md
+├── Makefile
+├── README.md
+└── requirements.txt
 ```
 
 ## Development Goals
