@@ -5,14 +5,14 @@ set -eu
 VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
 REPO_OWNER="mariohevia"
 REPO_NAME="JobVault-Libre"
-APPIMAGE_BASENAME="JobVault-Libre"
+APPIMAGE_BASENAME="JobVault_Libre"
 
 # Optional overrides (leave empty to auto-extract icon from the AppImage)
 # ICON_FILE="/path/to/icon.png"
 
 # ========= Derived values =========
 TAG="v${VERSION}"
-APPIMAGE_FILE="${APPIMAGE_BASENAME}-v${VERSION}-x86_64.AppImage"
+APPIMAGE_FILE="${APPIMAGE_BASENAME}-x86_64.AppImage"
 DOWNLOAD_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${TAG}/${APPIMAGE_FILE}"
 
 APP_ID="jobvault-libre"
@@ -94,6 +94,13 @@ EOF
 main() {
   tmpdir="$(mktemp -d)"
   trap 'rm -rf "${tmpdir}"' EXIT
+  
+  CAN_ROOT=false
+  if is_root; then
+    CAN_ROOT=true
+  elif have_sudo && sudo -n true 2>/dev/null; then
+    CAN_ROOT=true
+  fi
 
   echo "Downloading: ${DOWNLOAD_URL}"
   curl -fL --retry 3 --retry-delay 2 -o "${tmpdir}/${APPIMAGE_FILE}" "${DOWNLOAD_URL}"
@@ -101,7 +108,7 @@ main() {
   chmod +x "${tmpdir}/${APPIMAGE_FILE}"
 
   # Try system-wide install first; otherwise per-user.
-  if run_as_root "true" 2>/dev/null; then
+  if [ "${CAN_ROOT}" = "true" ]; then
     app_dir="${SYS_APP_DIR}"
     bin_link="${SYS_BIN_LINK}"
     desktop_dir="${SYS_DESKTOP_DIR}"
@@ -135,7 +142,7 @@ main() {
       echo "ICON_FILE set but not found: ${ICON_FILE}" >&2
       exit 1
     fi
-    if run_as_root "true" 2>/dev/null && ! is_root; then
+    if [ "${CAN_ROOT}" = "true" ] && ! is_root; then
       # If installing system-wide via sudo, copy as root
       run_as_root "cp -f '${ICON_FILE}' '${icon_dest}'"
     else
@@ -158,7 +165,7 @@ main() {
       icon_ext="${icon_src##*.}"
       icon_dest="${icon_dest%.*}.${icon_ext}"
 
-      if run_as_root "true" 2>/dev/null && ! is_root; then
+      if [ "${CAN_ROOT}" = "true" ] && ! is_root; then
         run_as_root "cp -f '${icon_src}' '${icon_dest}'"
       else
         cp -f "${icon_src}" "${icon_dest}"
@@ -174,7 +181,7 @@ main() {
     icon_for_desktop="${icon_dest}"
   fi
 
-  if run_as_root "true" 2>/dev/null && ! is_root && [ "${desktop_dir}" = "${SYS_DESKTOP_DIR}" ]; then
+  if [ "${CAN_ROOT}" = "true" ] && ! is_root && [ "${desktop_dir}" = "${SYS_DESKTOP_DIR}" ]; then
     tmp_desktop="${tmpdir}/${APP_ID}.desktop"
     write_desktop_file "${tmp_desktop}" "${exec_for_desktop}" "${icon_for_desktop}"
     run_as_root "cp -f '${tmp_desktop}' '${desktop_path}'"
