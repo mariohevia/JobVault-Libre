@@ -68,6 +68,12 @@ Run:
 ./JobVault_Libre-x86_64.AppImage
 ```
 
+## Download and register as desktop application
+
+```bash
+sudo .\create_desktop.sh
+```
+
 ### Running from source
 
 Requirements:
@@ -123,12 +129,6 @@ Build:
 
 ```bash
 make linux
-```
-
-Register the AppImage as a desktop application:
-
-```bash
-sudo .\create_desktop.sh
 ```
 
 ## Project Structure
